@@ -15,7 +15,7 @@ LICENSE="MIT"
 SLOT="0"
 KEYWORDS="amd64"
 
-BDEPEND="dev-lang/go-bin"
+BDEPEND="dev-lang/go"
 
 src_compile() {
     export CGO_ENABLED=0

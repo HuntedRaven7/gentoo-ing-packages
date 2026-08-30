@@ -51,7 +51,7 @@ staged binaries win and nothing gets recompiled unnecessarily.
 ## Adjusting toolchains
 
 The factory compiles with prebuilt toolchains (`dev-lang/rust-bin`,
-`dev-lang/go-bin`) special-cased as `~amd64` in
+`dev-lang/go`, plus `dev-lang/go-bootstrap`) special-cased as `~amd64` in
 `tools/make-binpkg.sh` — the gap binaries themselves stay stable-visible to
 consumers. Keep that special-casing to the toolchain atoms.
 

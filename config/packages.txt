@@ -22,6 +22,6 @@ sys-kernel/gentoo-kernel-bin
 sys-kernel/installkernel
 sys-kernel/linux-firmware
 app-containers/skopeo
-app-emulation/flatpak
+sys-apps/flatpak
 net-wireless/iwd
 app-misc/jq

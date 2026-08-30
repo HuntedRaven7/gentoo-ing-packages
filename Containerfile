@@ -33,6 +33,11 @@ ENV SYNC_PORTAGE=${SYNC_PORTAGE}
 # /etc/portage/binrepos.conf.
 ENV PKGDIR="/var/cache/binhost/gentoo-ing"
 
+# stage3 docker images are stripped: no portage tree ships. Bootstrap a
+# snapshot here in its own layer so source changes do not pay the sync cost
+# (the weekly cycle forces a fresh one with SYNC_PORTAGE=1).
+RUN emerge-webrsync
+
 COPY tools /app/tools
 COPY config /app/config
 COPY ebuilds /app/ebuilds

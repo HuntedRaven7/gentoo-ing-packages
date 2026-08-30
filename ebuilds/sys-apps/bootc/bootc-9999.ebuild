@@ -17,7 +17,7 @@ KEYWORDS="amd64"
 
 BDEPEND="
     dev-lang/rust-bin
-    sys-devel/make
+    dev-build/make
     virtual/pkgconfig
 "
 DEPEND="

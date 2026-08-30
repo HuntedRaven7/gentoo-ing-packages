@@ -40,8 +40,8 @@ to consumers for atom visibility.
 
 - `tools/make-binpkg.sh` bootstraps Portage (tree, profile, `PKGDIR`), registers
   the vendored ebuild overlay + the official binhost as the dep source, then
-  `emerge --buildpkg`es the gap closure. Toolchains (`rust-bin`, `go-bin`) are
-  accepted as `~amd64` for those atoms only.
+  `emerge --buildpkg`es the gap closure. Toolchains (`rust-bin`, `go`,
+  `go-bootstrap`) are accepted as `~amd64` for those atoms only.
 - The `Containerfile` runs that script in a `maker` stage, regenerates the
   `Packages` index with `emaint binhost --fix` (strict: a corrupt tbz2 breaks
   the image), then publishes only the binhost tree + ebuild overlay to

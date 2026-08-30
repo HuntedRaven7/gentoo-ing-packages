@@ -40,29 +40,39 @@ grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
 grep -q '^PKGDIR=' /etc/portage/make.conf \
     || echo "PKGDIR=${BINHOST}" >> /etc/portage/make.conf
 grep -q '^FEATURES=.*getbinpkg' /etc/portage/make.conf \
-    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance binpkg-native-symlinks parallel-fetch parallel-install"' >> /etc/portage/make.conf
-# shellcheck disable=SC2016 # $(nproc) must reach make.conf unevaluated
+    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance parallel-fetch parallel-install"' >> /etc/portage/make.conf
+NPROC=$(nproc)
 grep -q '^MAKEOPTS=' /etc/portage/make.conf \
-    || echo 'MAKEOPTS="-j$(nproc)"' >> /etc/portage/make.conf
+    || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
 
 # 4. Vendored ebuild overlay (bootc, gum, just) so the gap atoms resolve.
+# The section name MUST equal the repo's internal name (profiles/repo_name).
 mkdir -p /etc/portage/repos.conf
 cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
 [gentoo-ing-ebuilds]
 location = ${EBUILDS}
-sync-type = none
 priority = 80
 EOF
 
 # Toolchain atoms used to compile the gaps may trail the stable branch on
 # amd64. Accept ~amd64 for THOSE ONLY, so the gap binaries themselves stay
 # stable-visible to consumers (they only ever consume the finished binpkg).
+# Bare atoms only: '=cat/pkg-*' ranges are invalid in package.accept_keywords.
 mkdir -p /etc/portage/package.accept_keywords
-echo '=dev-lang/rust-bin-* ~amd64' > /etc/portage/package.accept_keywords/toolchains
-echo '=dev-lang/go-bin-* ~amd64' >> /etc/portage/package.accept_keywords/toolchains
-echo '=dev-lang/go-* ~amd64' >> /etc/portage/package.accept_keywords/toolchains
+cat > /etc/portage/package.accept_keywords/toolchains <<EOF
+dev-lang/rust-bin ~amd64
+dev-lang/go ~amd64
+dev-lang/go-bootstrap ~amd64
+EOF
+
+# gentoo-kernel-bin ships initramfs by default and requires an installkernel
+# that can generate it (USE dracut), which the stable official binpkg lacks.
+mkdir -p /etc/portage/package.use
+cat > /etc/portage/package.use/installkernel <<EOF
+sys-kernel/installkernel dracut
+EOF
 
 # 5. Official binhost supplies dependency binaries for the gap builds.
 mkdir -p /etc/portage/binrepos.conf

@@ -89,6 +89,13 @@ def check_ebuilds_overlay() -> list[str]:
         errors.append("ebuilds/metadata/layout.conf missing")
     if not (ebuilds / "profiles" / "repo_name").is_file():
         errors.append("ebuilds/profiles/repo_name missing")
+    else:
+        repo_name = (ebuilds / "profiles" / "repo_name").read_text().strip()
+        if repo_name != "gentoo-ing-ebuilds":
+            errors.append(
+                f"ebuilds/profiles/repo_name must be 'gentoo-ing-ebuilds' (portage "
+                f"requires the repos.conf section name to match), got {repo_name!r}"
+            )
     for atom in VENDORED_ATOMS:
         cat, pkg = atom.split("/")
         pkgs_with_ebuild = list((ebuilds / cat / pkg).glob("*.ebuild"))
