@@ -12,6 +12,12 @@ on:
       - "packages/**"
       - "tools/**"
       - ".github/workflows/*"
+  schedule:
+    # Weekly update cycle: a fresh portage tree (SYNC_PORTAGE=1) lets -uDN move
+    # the gap set (and its dependency closure) to current stable versions. The
+    # manifest-diff step then skips the push entirely when nothing moved, so the
+    # registry only advances when a package actually changes.
+    - cron: "30 3 * * 0"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +37,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 240
     permissions:
       contents: read
       packages: write
@@ -41,6 +47,11 @@ jobs:
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+          # Weekly cron refreshes the portage tree so updates are discovered;
+          # normal pushes reuse the tree as-is.
+          sync=0
+          [ "${{ github.event_name }}" = "schedule" ] && sync=1
+          echo "SYNC_PORTAGE=${sync}" >> "${GITHUB_ENV}"
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -51,6 +62,110 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
+      - name: Load current published manifest (if any)
+        id: baseline
+        run: |
+          set -x
+          docker pull ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          if docker image inspect ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest >/dev/null 2>&1; then
+            cid=$(docker create ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest /bin/sh)
+            docker cp "${cid}:/var/cache/binhost/gentoo-ing/.manifest" /tmp/baseline.manifest || true
+            docker rm "${cid}" >/dev/null
+          fi
+
+      - name: Build binhost image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          push: false
+          load: true
+          tags: localhost/${{ env.IMAGE_NAME }}:local
+          build-args: |
+            SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
+
+      - name: Build maker image (for security scanning)
+        id: build-maker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          target: maker
+          push: false
+          load: true
+          tags: localhost/${{ env.IMAGE_NAME }}:maker
+          build-args: |
+            SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
+
+      - name: Diff package set against published overlay
+        id: diff
+        run: |
+          cid=$(docker create localhost/${{ env.IMAGE_NAME }}:local /bin/sh)
+          docker cp "${cid}:/var/cache/binhost/gentoo-ing/.manifest" /tmp/new.manifest
+          docker rm "${cid}" >/dev/null
+          if [ -f /tmp/baseline.manifest ] && cmp -s /tmp/baseline.manifest /tmp/new.manifest; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=update cycle::no package version changed; skipping publish"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+            [ -f /tmp/baseline.manifest ] && diff -u /tmp/baseline.manifest /tmp/new.manifest || true
+          fi
+          cat /tmp/new.manifest
+
+      - name: Login to GitHub Container Registry
+        if: steps.diff.outputs.changed == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images to GHCR
+        id: push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -eoux pipefail
+          for tag in latest "${{ github.sha }}"; do
+            docker tag localhost/${{ env.IMAGE_NAME }}:local \
+              ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}
+            docker push ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}
+          done
+          docker tag localhost/${{ env.IMAGE_NAME }}:maker \
+            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          docker push ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          digest=$(docker image inspect ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --format '{{index .RepoDigests 0}}')
+          echo "digest=${digest##*@}" >> "${GITHUB_OUTPUT}"
+
+      - name: Attest build provenance
+        if: steps.diff.outputs.changed == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+
+      - name: Report digest for consumer pin
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          echo "::notice title=consumer pin::ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
+
+  # syft + grype on the built packages, surfaced as Code Scanning alerts in the
+  # Security tab. Scans the `maker` stage (the image that actually compiled the
+  # gap set), so CVEs are attributable to what we publish. Never fails the
+  # build: this is a report, not a gate.
+  security-scan:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: always() && !cancelled() && needs.publish.result == 'success'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -58,22 +173,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
-        id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
-        with:
-          subject-name: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
-          subject-digest: ${{ steps.build.outputs.digest }}
-
-      - name: Report digest for consumer pin
+      - name: Export GHCR auth for scanners
         run: |
-          echo "::notice title=consumer pin::ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest@${{ steps.build.outputs.digest }}"
+          token=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)
+          echo "DOCKER_AUTH_CONFIG={\"auths\":{\"ghcr.io\":{\"auth\":\"${token}\"}}}" >> "${GITHUB_ENV}"
+
+      - name: Generate SBOM (syft)
+        id: sbom
+        uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
+        with:
+          image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          format: cyclonedx-json
+          artifact-name: sbom-${{ env.IMAGE_NAME }}-maker
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan with Grype (report only, never fails)
+        id: scan
+        uses: anchore/scan-action@8576240a41341d866dbd7ebc72cd9fc0ef023f54 # v7.4.2
+        with:
+          image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          fail-build: "false"
+          severity-cutoff: medium
+          output-format: sarif
+          output-file: results.sarif
+          by-cve: "true"
+          cache-db: "true"
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@5ba2889ada762081db2c4f32a729827dce632c7b # v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}

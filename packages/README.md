@@ -1,10 +1,9 @@
 # Binhost overlay (packages/)
 
-This directory is the **full binary package cache** that `gentoo-ing` consumes.
-
-Drop Gentoo binary packages (`.tbz2`) here — that is the "plop in newer
-packages" workflow. Preserve the layout the official binhost uses so images
-look the same on disk:
+This directory is an **optional fast path** for the binhost: drop prebuilt
+`.tbz2` binaries here so the factory doesn't have to compile them. It is *not*
+the full cache — the factory builds `config/gap-build.txt` itself and stages
+these files *into* that overlay before regenerating the index.
 
 ```
 packages/
@@ -15,9 +14,11 @@ packages/
 └── ...
 ```
 
-`packages/Packages` (the index) is `.gitignore`-d on purpose: it is
-regenerated from the tree by `emaint binhost --fix` every time the OCI image
-builds. Never commit an index — only commit `.tbz2` files and their
-`Manifest`/`metadata` siblings if a package ships any.
+Preserve the category layout the official binhost uses so the staged paths stay
+recognizable.
+
+`packages/Packages` (the index) is `.gitignore`-d on purpose: it is regenerated
+from the tree by `emaint binhost --fix` every time the OCI image builds. Never
+commit an index — only commit `.tbz2` files.
 
 See `../docs/adding-packages.md` for the full "add or update a package" walkthrough.

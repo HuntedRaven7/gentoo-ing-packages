@@ -1,26 +1,27 @@
 # Curated overlay package set.
 #
-# These are the packages the gentoo-ing image should always take from this
-# binhost rather than the official one. Drop the matching .tbz2 files into
-# packages/ (same category path as the official layout) and they win over the
-# official binhost because this repo has higher priority (1 vs 9959).
+# The set of atoms the gentoo-ing image expects this binhost overlay to
+# satisfy. It matches config/gap-build.txt: packages the official Gentoo
+# binhost does not ship, built once here and published as prebuilt binpkgs.
 #
-# Anything NOT listed here still resolves from the official Gentoo binhost
-# (sync-uri fallback) or falls back to a source build.
+# ci builds the binpkgs for everything on this list (tools/make-binpkg.sh uses
+# config/gap-build.txt); these lines drive tools/seed-binhost.py, which for any
+# atom the OFFICIAL binhost starts carrying can fetch the newest official
+# .tbz2 into packages/ as a faster "plop-in" starting point.
 #
-# Format: one CPV or category/package pattern per line. '#' is a comment.
-# tools/seed-binhost.sh uses this list to pull the newest available build from
-# the official binhost as a starting point.
+# sys-apps/bootc, app-shells/gum, and dev-util/just have no ::gentoo ebuild at
+# all — they can never be seeded; they exist only via the ebuilds/ overlay and
+# are built here. seed-binhost.py reports "no binpkg found" for them.
+#
+# Format: one CPV or category/package prefix per line. '#' is a comment.
 
+sys-apps/bootc
+app-shells/gum
+dev-util/just
 sys-kernel/gentoo-kernel-bin
+sys-kernel/installkernel
 sys-kernel/linux-firmware
-app-containers/podman
 app-containers/skopeo
-dev-util/ostree
-sys-apps/systemd
-sys-kernel/dracut
-net-misc/openssh
+app-emulation/flatpak
 net-wireless/iwd
-app-admin/sudo
-app-editors/vim
-app-misc/tmux
+app-misc/jq

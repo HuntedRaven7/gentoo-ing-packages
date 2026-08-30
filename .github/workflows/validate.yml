@@ -22,11 +22,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Validate repo (composite: hadolint + shellcheck + pre-commit)
+      - name: "Validate repo (composite: hadolint + shellcheck + pre-commit)"
         uses: projectbluefin/actions/bootc-build/validate-pr@eb4c546389f19ad9e42f1af052623de73c620ebb # v1
         with:
-          dockerfile: "Containerfile"
-          hadolint-config: ".hadolint.yaml"
+          dockerfile: Containerfile
+          hadolint-config: .hadolint.yaml
 
       - name: Validate binhost tree and config
         run: python3 tools/validate.py

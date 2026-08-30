@@ -7,7 +7,7 @@ export PODMAN := env("PODMAN", "podman")
 default:
     @just --list
 
-# Validate config, tools, and binhost tree consistency
+# Validate config, ebuild overlay, and binhost tree consistency
 [group('Just')]
 validate:
     python3 tools/validate.py
@@ -22,7 +22,7 @@ lint:
     fi
     python3 -m py_compile tools/seed-binhost.py tools/validate.py
 
-# Build the binhost image locally
+# Build the binhost image locally (compiles the gap set)
 [group('Image')]
 build $tag="latest":
     {{ PODMAN }} build --pull=newer -t localhost/{{ IMAGE_NAME }}:{{ tag }} .
@@ -32,12 +32,17 @@ build $tag="latest":
 push $tag="latest":
     {{ PODMAN }} push localhost/{{ IMAGE_NAME }}:{{ tag }} {{ IMAGE_FULL }}:{{ tag }}
 
-# Seed packages/ from the official Gentoo binhost (curated list in config/packages.txt)
+# Stage official prebuilts into packages/ (only for atoms the official host carries)
 [group('Tooling')]
 seed binhost_root="" BASE="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64":
     python3 tools/seed-binhost.py {{ if binhost_root == "" { BASE } else { binhost_root } }}
 
-# Show the curated package list
+# Show the curated overlay set (what gentoo-ing expects this overlay to satisfy)
 [group('Tooling')]
 show-package-set:
     sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/packages.txt
+
+# Show the atoms the factory builds (config/gap-build.txt)
+[group('Tooling')]
+show-gaps:
+    sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/gap-build.txt

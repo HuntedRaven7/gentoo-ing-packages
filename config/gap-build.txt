@@ -1,0 +1,28 @@
+# Atoms that the official Gentoo binhost does not ship (checked against the
+# amd64/23.0 x86-64 Packages index) and that therefore must be BUILT once here
+# in the gentoo-ing-packages factory and published as binpkgs. The consumer
+# (gentoo-ing) installs these with --usepkgonly straight from this overlay.
+#
+# Three of these (sys-apps/bootc, app-shells/gum, dev-util/just) have no ebuild
+# in ::gentoo at all; their live ebuilds live under ebuilds/ in this repo and
+# are exported to consumers for atom visibility.
+#
+# Everything else is a regular ::gentoo atom that just isn't (yet) covered by
+# the official binhost; we build it here with the same stable keywords the
+# consumer requests.
+#
+# Format: one unslotted atom or category/package pattern per line. '#' is a
+# comment. Deps of these atoms resolve from the official binhost at build time
+# and are also emitted into the overlay (--buildpkg builds the whole closure),
+# so the overlay is self-contained for anything the image pins.
+
+sys-apps/bootc
+app-shells/gum
+dev-util/just
+sys-kernel/gentoo-kernel-bin
+sys-kernel/installkernel
+sys-kernel/linux-firmware
+app-containers/skopeo
+app-emulation/flatpak
+net-wireless/iwd
+app-misc/jq
