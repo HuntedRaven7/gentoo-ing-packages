@@ -40,12 +40,12 @@ grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
 grep -q '^PKGDIR=' /etc/portage/make.conf \
     || echo "PKGDIR=${BINHOST}" >> /etc/portage/make.conf
 grep -q '^FEATURES=.*getbinpkg' /etc/portage/make.conf \
-    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance parallel-fetch parallel-install"' >> /etc/portage/make.conf
+    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance binpkg-native-symlinks parallel-fetch parallel-install"' >> /etc/portage/make.conf
 # shellcheck disable=SC2016 # $(nproc) must reach make.conf unevaluated
 grep -q '^MAKEOPTS=' /etc/portage/make.conf \
     || echo 'MAKEOPTS="-j$(nproc)"' >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
-    || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n --binpkg-native-symlinks"' >> /etc/portage/make.conf
+    || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
 
 # 4. Vendored ebuild overlay (bootc, gum, just) so the gap atoms resolve.
 mkdir -p /etc/portage/repos.conf
