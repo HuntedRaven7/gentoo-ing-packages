@@ -1,0 +1,4 @@
+# Hadolint configuration for the binhost Containerfile
+ignored:
+  - DL3006 # Commented-out alternative FROM lines use ARG interpolation
+  - DL3059 # Multiple consecutive RUN instructions — intentional design

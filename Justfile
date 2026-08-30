@@ -1,0 +1,43 @@
+export IMAGE_NAME := env("IMAGE_NAME", "gentoo-ing-packages")
+export REPO_ORG := env("REPO_ORG", "HuntedRaven7")
+export IMAGE_FULL := "ghcr.io/" + REPO_ORG + "/" + IMAGE_NAME
+export PODMAN := env("PODMAN", "podman")
+
+[private]
+default:
+    @just --list
+
+# Validate config, tools, and binhost tree consistency
+[group('Just')]
+validate:
+    python3 tools/validate.py
+
+# Lint shell tooling and byte-compile python tooling
+[group('Just')]
+lint:
+    #!/usr/bin/env bash
+    set -eoux pipefail
+    if command -v shellcheck >/dev/null 2>&1; then
+        find tools -name '*.sh' -type f -exec shellcheck {} +
+    fi
+    python3 -m py_compile tools/seed-binhost.py tools/validate.py
+
+# Build the binhost image locally
+[group('Image')]
+build $tag="latest":
+    {{ PODMAN }} build --pull=newer -t localhost/{{ IMAGE_NAME }}:{{ tag }} .
+
+# Push the binhost image to GHCR
+[group('Image')]
+push $tag="latest":
+    {{ PODMAN }} push localhost/{{ IMAGE_NAME }}:{{ tag }} {{ IMAGE_FULL }}:{{ tag }}
+
+# Seed packages/ from the official Gentoo binhost (curated list in config/packages.txt)
+[group('Tooling')]
+seed binhost_root="" BASE="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64":
+    python3 tools/seed-binhost.py {{ if binhost_root == "" { BASE } else { binhost_root } }}
+
+# Show the curated package list
+[group('Tooling')]
+show-package-set:
+    sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/packages.txt
