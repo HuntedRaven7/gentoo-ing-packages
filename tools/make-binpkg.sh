@@ -84,13 +84,19 @@ verify-signature = false
 location = /var/cache/binhost/gentoo
 EOF
 
-# 6. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
+# 6. Trust the official binhost signature. Portage verifies official binpkgs
+#    unconditionally in this version (unknown key = package unusable);
+#    getuto is the supported trust helper for the release key. The later
+#    emerge is the real gate: a signature failure still aborts the build.
+getuto >/dev/null 2>&1 || true
+
+# 7. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
 mkdir -p "${BINHOST}"
 if find /app/packages -name '*.tbz2' -o -name '*.gpkg.tar' | grep -q .; then
     cp -avf /app/packages/. "${BINHOST}/"
 fi
 
-# 7. Update (no-op when nothing is stale) and emit binpkgs for what merged.
+# 8. Update (no-op when nothing is stale) and emit binpkgs for what merged.
 #    Deps come from the official binhost as binaries; only atoms the official
 #    host lacks actually compile here.
 mapfile -t GAPS < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' /app/config/gap-build.txt)
@@ -98,18 +104,18 @@ if [ "${#GAPS[@]}" -gt 0 ]; then
     emerge --update --deep --newuse "${GAPS[@]}"
 fi
 
-# 8. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
+# 9. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
 emaint binhost --fix
 
-# 9. Prune superseded versions (bounds the image) and re-index.
+# 10. Prune superseded versions (bounds the image) and re-index.
 python3 /app/tools/prune-binhost.py --binhost "${BINHOST}"
 emaint binhost --fix
 
-# 10. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
+# 11. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
 mkdir -p "${EBUILDS_EXPORT}"
 cp -avf "${EBUILDS}/." "${EBUILDS_EXPORT}/"
 
-# 11. Report
+# 12. Report
 count=$(find "${BINHOST}" -name '*.tbz2' -o -name '*.gpkg.tar' | wc -l)
 echo "OVERLAY: ${count} binpkg(s) in ${BINHOST}"
 echo "EBUILDS: exported to ${EBUILDS_EXPORT}"
