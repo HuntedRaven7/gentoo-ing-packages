@@ -9,6 +9,7 @@ on:
       - "Containerfile"
       - "Justfile"
       - "config/**"
+      - "ebuilds/**"
       - "packages/**"
       - "tools/**"
       - ".github/workflows/*"
