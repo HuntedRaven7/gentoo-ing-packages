@@ -9,7 +9,6 @@ DESCRIPTION="Handy way to save and run project-specific commands"
 HOMEPAGE="https://github.com/casey/just"
 EGIT_REPO_URI="https://github.com/casey/just.git"
 EGIT_CLONE_TYPE="shallow"
-EGIT_BRANCH="main"
 
 LICENSE="CC0-1.0"
 SLOT="0"
