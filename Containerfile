@@ -8,7 +8,7 @@
 #    firmware, skopeo, flatpak, iwd, jq, installkernel, gum, just) once per
 #    published image. --buildpkg emits a binpkg for every merged package, so the
 #    overlay is self-contained and consumers never compile or hit the official
-#    host at runtime. Compiles route through sccache (/var/cache/sccache, primed
+#    host at runtime. Compiles route through ccache (/var/cache/ccache, primed
 #    from the workflow cache) so GNOME-scale rebuilds reuse past work.
 # 2. PUBLISH a data-only image containing the binhost tree plus the ebuild
 #    overlay that gives consumers atom visibility for the packages
@@ -47,11 +47,11 @@ COPY config /app/config
 COPY ebuilds /app/ebuilds
 COPY packages /app/packages
 
-# Prime sccache from the previous run's cache, if any. The publish workflow
-# supplies this additional build context (sccache-prime) round-tripped through
-# actions/cache; local `just build` does the same from .cache/sccache. An empty
+# Prime ccache from the previous run's cache, if any. The publish workflow
+# supplies this additional build context (ccache-prime) round-tripped through
+# actions/cache; local `just build` does the same from .cache/ccache. An empty
 # context primes nothing and simply starts cold.
-COPY --from=sccache-prime / /var/cache/sccache/
+COPY --from=ccache-prime / /var/cache/ccache/
 
 # Bootstrap portage, build the full overlay set (mirrored + compiled gaps) as
 # binpkgs, regenerate the index (strict: a corrupt tbz2 breaks the image so it

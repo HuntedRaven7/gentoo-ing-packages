@@ -65,9 +65,10 @@ dependency closure), the overlay is fully self-contained.
   are staged before the builds and indexed afterwards.
 - CI caches the emerge result per layer: an unchanged set is reused, so the
   factory only recompiles when a listed atom actually changes.
-- Compiles route through **sccache** (`/var/cache/sccache`), round-tripped
-  through the workflow cache between runs — unchanged compiles (bootc, gum,
-  just, kernel, and the upcoming GNOME stack) are not re-done every run.
+- Compiles route through **ccache** (`/var/cache/ccache`, portage-native
+  `FEATURES=ccache`), round-tripped through the workflow cache between runs —
+  unchanged compiles (bootc, gum, just, kernel, and the upcoming GNOME stack)
+  are not re-done every run.
 - **Fail-closed:** a run whose overlay cannot serve the full declared set
   (empty manifest, or any `config/packages.txt` atom absent from it) exits
   non-zero, so a partial cache is never published to the sealed consumer.
@@ -130,7 +131,7 @@ scan job pulls the already-built stage instead of recompiling.
 just validate            # sanity-checks config, ebuild overlay, tree
 just show-package-set    # print the full overlay set the factory mirrors/builds
 just build               # build the image locally (mirrors + compiles the set)
-just prime-cache         # reuse the previous local build's sccache
+just prime-cache         # reuse the previous local build's ccache
 just push                # push ghcr.io/HuntedRaven7/gentoo-ing-packages:latest
 just seed                # stage official prebuilts into packages/ (optional)
 ```

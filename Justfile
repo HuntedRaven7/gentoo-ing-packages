@@ -23,26 +23,26 @@ lint:
     python3 -m py_compile tools/seed-binhost.py tools/validate.py
 
 # Build the binhost image locally (mirrors + compiles the full overlay set).
-# sccache primes from .cache/sccache (a prior `just prime-cache`); a cold
+# ccache primes from .cache/ccache (a prior `just prime-cache`); a cold
 # first build starts with an empty cache, just like a first CI run.
 [group('Image')]
 build $tag="latest":
-    mkdir -p .cache/sccache
+    mkdir -p .cache/ccache
     {{ PODMAN }} build --pull=newer \
-        --build-context sccache-prime=.cache/sccache \
+        --build-context ccache-prime=.cache/ccache \
         -t localhost/{{ IMAGE_NAME }}:{{ tag }} .
 
-# Pull the sccache out of a prior local build's maker stage into .cache/sccache
+# Pull the ccache out of a prior local build's maker stage into .cache/ccache
 # so the next `just build` reuses it. No-op (exit 0) if no maker image yet.
 [group('Image')]
 prime-cache:
     #!/usr/bin/env bash
     set -uo pipefail
-    mkdir -p .cache/sccache
+    mkdir -p .cache/ccache
     cid=$("{{ PODMAN }}" create localhost/{{ IMAGE_NAME }}:maker /bin/sh 2>/dev/null) || exit 0
-    "{{ PODMAN }}" cp "${cid}:/var/cache/sccache/." .cache/sccache/ || true
+    "{{ PODMAN }}" cp "${cid}:/var/cache/ccache/." .cache/ccache/ || true
     "{{ PODMAN }}" rm "${cid}" >/dev/null
-    du -sh .cache/sccache
+    du -sh .cache/ccache
 
 # Push the binhost image to GHCR
 [group('Image')]

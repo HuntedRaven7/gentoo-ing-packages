@@ -68,22 +68,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
-      # sccache round-trip: restore the previous run's compile cache, feed it to
-      # the builder as the `sccache-prime` context (Containerfile primes
-      # /var/cache/sccache from it), extract the grown cache back out of the
+      # ccache round-trip: restore the previous run's compile cache, feed it to
+      # the builder as the `ccache-prime` context (Containerfile primes
+      # /var/cache/ccache from it), extract the grown cache back out of the
       # built maker image, and the post-step below saves it. Unchanged compiles
       # (bootc/gum/just/kernel now, GNOME later) are not re-done on every run.
-      - name: Restore sccache from the cache
+      - name: Restore ccache from the cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: /tmp/sccache-cache
-          key: sccache-${{ hashFiles('config/packages.txt', 'ebuilds/**') }}
+          path: /tmp/ccache-cache
+          key: ccache-${{ hashFiles('config/packages.txt', 'ebuilds/**') }}
           restore-keys: |
-            sccache-
+            ccache-
           save-always: 'true'
 
-      - name: Ensure sccache prime dir exists (first run is empty = cold start)
-        run: mkdir -p /tmp/sccache-cache
+      - name: Ensure ccache prime dir exists (first run is empty = cold start)
+        run: mkdir -p /tmp/ccache-cache
 
       - name: Load current published manifest (if any)
         id: baseline
@@ -106,7 +106,7 @@ jobs:
           load: true
           tags: localhost/${{ env.IMAGE_NAME }}:local
           build-contexts: |
-            sccache-prime=/tmp/sccache-cache
+            ccache-prime=/tmp/ccache-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
@@ -121,7 +121,7 @@ jobs:
           load: true
           tags: localhost/${{ env.IMAGE_NAME }}:maker
           build-contexts: |
-            sccache-prime=/tmp/sccache-cache
+            ccache-prime=/tmp/ccache-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
@@ -140,17 +140,17 @@ jobs:
           fi
           cat /tmp/new.manifest
 
-      # Pull the grown sccache out of the built maker image so the next run's
+      # Pull the grown ccache out of the built maker image so the next run's
       # restore step feeds it back in (the cache lives in the maker's layer,
       # not in the published binhost image).
-      - name: Extract sccache from the built maker
+      - name: Extract ccache from the built maker
         run: |
-          rm -rf /tmp/sccache-cache
-          mkdir -p /tmp/sccache-cache
+          rm -rf /tmp/ccache-cache
+          mkdir -p /tmp/ccache-cache
           cid=$(docker create localhost/${{ env.IMAGE_NAME }}:maker /bin/sh)
-          docker cp "${cid}:/var/cache/sccache/." /tmp/sccache-cache/ || true
+          docker cp "${cid}:/var/cache/ccache/." /tmp/ccache-cache/ || true
           docker rm "${cid}" >/dev/null
-          du -sh /tmp/sccache-cache 2>/dev/null || true
+          du -sh /tmp/ccache-cache 2>/dev/null || true
 
       - name: Login to GitHub Container Registry
         if: steps.diff.outputs.changed == 'true'

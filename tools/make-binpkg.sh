@@ -18,9 +18,9 @@ set -euo pipefail
 #     build-time-only toolchains in config/prune.txt (rust/go, never needed by a
 #     --usepkgonly consumer), so the published image stays small
 #   - .manifest is the byte-stable summary the workflow diffs to skip no-op pushes
-#   - sccache (wired in as portage's ccache) caches compiles under
-#     /var/cache/sccache; the workflow round-trips that dir through its cache so
-#     unchanged compiles are not re-done every run
+#   - ccache (portage's FEATURES=ccache, /usr/lib/ccache/bin) caches compiles
+#     under /var/cache/ccache; the workflow round-trips that dir through its
+#     cache so unchanged compiles are not re-done every run
 #   - fail-closed: a run whose overlay cannot serve the FULL declared set (empty
 #     manifest or any config/packages.txt atom absent) exits non-zero, so a
 #     partial overlay never gets published to the sealed consumer
@@ -60,9 +60,7 @@ grep -q '^MAKEOPTS=' /etc/portage/make.conf \
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
 grep -q '^CCACHE_DIR=' /etc/portage/make.conf \
-    || echo "CCACHE_DIR=/var/cache/sccache" >> /etc/portage/make.conf
-grep -q '^SCCACHE_DIR=' /etc/portage/make.conf \
-    || echo "SCCACHE_DIR=/var/cache/sccache" >> /etc/portage/make.conf
+    || echo "CCACHE_DIR=/var/cache/ccache" >> /etc/portage/make.conf
 
 # 4. Vendored ebuild overlay (bootc, gum, just) so the full set resolves.
 # The section name MUST equal the repo's internal name (profiles/repo_name).
@@ -107,18 +105,23 @@ EOF
 #    emerge is the real gate: a signature failure still aborts the build.
 getuto >/dev/null 2>&1 || true
 
-# 7. sccache as portage's ccache. The gap set (bootc, gum, just, kernel, and the
-#    upcoming GNOME stack) is compiled here; sccache caches those C/C++/Rust
-#    compiles under /var/cache/sccache, which the workflow primes from its
-#    cache and saves back, so unchanged compiles reuse past results instead of
-#    rebuilding every run. sccache itself is build-env-only (never shipped:
-#    it is in config/prune.txt), and the shims make portage's FEATURES=ccache
-#    resolve through it.
-emerge --oneshot dev-util/sccache
-mkdir -p /var/cache/sccache
+# 7. ccache as the compile cache. The gap set (bootc, gum, just, kernel, and the
+#    upcoming GNOME stack) is compiled here; ccache caches those C/C++ compiles
+#    under /var/cache/ccache, which the workflow primes from its cache and saves
+#    back, so unchanged compiles reuse past results instead of rebuilding every
+#    run. ccache itself is build-env-only (never shipped: it is in
+#    config/prune.txt). Portage's FEATURES=ccache prepends /usr/lib/ccache/bin to
+#    the PATH; ccache installs its own plain-name shims there, and we add the
+#    CHOST-prefixed names portage/configure also invoke. ccache preserves the
+#    invocation name when exec'ing the real compiler, so GCC keeps its g++/gcc
+#    language semantics in configure probes (this is exactly what a bootstrap
+#    whose C++ checks all failed was missing).
+emerge --oneshot sys-devel/ccache
+mkdir -p /var/cache/ccache
 mkdir -p /usr/lib/ccache/bin
-for target in ccache cc c++ gcc g++ clang clang++ x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
-    ln -sf /usr/bin/sccache "/usr/lib/ccache/bin/${target}"
+ln -sf /usr/bin/ccache /usr/lib/ccache/bin/ccache
+for target in x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
+    ln -sf /usr/bin/ccache "/usr/lib/ccache/bin/${target}"
 done
 
 # 8. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
@@ -140,7 +143,7 @@ fi
 emaint binhost --fix
 
 # 11. Prune the cache: drop superseded versions AND build-time-only toolchains
-#     (config/prune.txt never-ship list — rust/go/sccache chain), then re-index.
+#     (config/prune.txt never-ship list — rust/go/ccache chain), then re-index.
 python3 /app/tools/prune-binhost.py --binhost "${BINHOST}" --prune-list /app/config/prune.txt
 emaint binhost --fix
 
