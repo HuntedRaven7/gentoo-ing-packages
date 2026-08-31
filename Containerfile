@@ -8,10 +8,12 @@
 #    firmware, skopeo, flatpak, iwd, jq, installkernel, gum, just) once per
 #    published image. --buildpkg emits a binpkg for every merged package, so the
 #    overlay is self-contained and consumers never compile or hit the official
-#    host at runtime.
+#    host at runtime. Compiles route through sccache (/var/cache/sccache, primed
+#    from the workflow cache) so GNOME-scale rebuilds reuse past work.
 # 2. PUBLISH a data-only image containing the binhost tree plus the ebuild
 #    overlay that gives consumers atom visibility for the packages
-#    ::gentoo does not carry at all (bootc, gum, just).
+#    ::gentoo does not carry at all (bootc, gum, just), AND (via the publish
+#    workflow) the same tree as a plain HTTP repo on GitHub Pages.
 #
 #   /var/cache/binhost/gentoo-ing          -> binpkg tree + Packages index
 #   /var/cache/binhost/gentoo-ing-ebuilds  -> ebuild overlay (repo_name,
@@ -45,8 +47,16 @@ COPY config /app/config
 COPY ebuilds /app/ebuilds
 COPY packages /app/packages
 
-# Bootstrap portage, build the gap closure as binpkgs, regenerate the index
-# (strict: a corrupt tbz2 breaks the image so it never reaches consumers).
+# Prime sccache from the previous run's cache, if any. The publish workflow
+# supplies this additional build context (sccache-prime) round-tripped through
+# actions/cache; local `just build` does the same from .cache/sccache. An empty
+# context primes nothing and simply starts cold.
+COPY --from=sccache-prime / /var/cache/sccache/
+
+# Bootstrap portage, build the full overlay set (mirrored + compiled gaps) as
+# binpkgs, regenerate the index (strict: a corrupt tbz2 breaks the image so it
+# never reaches consumers). Fail-closed: a run that cannot serve the full set
+# exits non-zero inside make-binpkg.sh.
 RUN chmod +x /app/tools/make-binpkg.sh \
     && /app/tools/make-binpkg.sh \
     && test -f "${PKGDIR}/Packages"

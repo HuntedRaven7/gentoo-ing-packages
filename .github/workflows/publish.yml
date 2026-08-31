@@ -25,6 +25,7 @@ on:
 permissions:
   contents: read
   packages: write
+  pages: write
   id-token: write
   attestations: write
 
@@ -40,9 +41,12 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
     permissions:
       contents: read
       packages: write
+      pages: write
       id-token: write
       attestations: write
     steps:
@@ -64,6 +68,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
+      # sccache round-trip: restore the previous run's compile cache, feed it to
+      # the builder as the `sccache-prime` context (Containerfile primes
+      # /var/cache/sccache from it), extract the grown cache back out of the
+      # built maker image, and the post-step below saves it. Unchanged compiles
+      # (bootc/gum/just/kernel now, GNOME later) are not re-done on every run.
+      - name: Restore sccache from the cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/sccache-cache
+          key: sccache-${{ hashFiles('config/packages.txt', 'ebuilds/**') }}
+          restore-keys: |
+            sccache-
+          save-always: 'true'
+
+      - name: Ensure sccache prime dir exists (first run is empty = cold start)
+        run: mkdir -p /tmp/sccache-cache
+
       - name: Load current published manifest (if any)
         id: baseline
         run: |
@@ -84,6 +105,8 @@ jobs:
           push: false
           load: true
           tags: localhost/${{ env.IMAGE_NAME }}:local
+          build-contexts: |
+            sccache-prime=/tmp/sccache-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
@@ -97,6 +120,8 @@ jobs:
           push: false
           load: true
           tags: localhost/${{ env.IMAGE_NAME }}:maker
+          build-contexts: |
+            sccache-prime=/tmp/sccache-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
@@ -114,6 +139,18 @@ jobs:
             [ -f /tmp/baseline.manifest ] && diff -u /tmp/baseline.manifest /tmp/new.manifest || true
           fi
           cat /tmp/new.manifest
+
+      # Pull the grown sccache out of the built maker image so the next run's
+      # restore step feeds it back in (the cache lives in the maker's layer,
+      # not in the published binhost image).
+      - name: Extract sccache from the built maker
+        run: |
+          rm -rf /tmp/sccache-cache
+          mkdir -p /tmp/sccache-cache
+          cid=$(docker create localhost/${{ env.IMAGE_NAME }}:maker /bin/sh)
+          docker cp "${cid}:/var/cache/sccache/." /tmp/sccache-cache/ || true
+          docker rm "${cid}" >/dev/null
+          du -sh /tmp/sccache-cache 2>/dev/null || true
 
       - name: Login to GitHub Container Registry
         if: steps.diff.outputs.changed == 'true'
@@ -208,3 +245,47 @@ jobs:
         uses: github/codeql-action/upload-sarif@5ba2889ada762081db2c4f32a729827dce632c7b # v3
         with:
           sarif_file: ${{ steps.scan.outputs.sarif }}
+
+  # Mirror the published cache as a plain HTTP Gentoo binrepo on GitHub Pages:
+  # `PORTAGE_BINHOST=https://HuntedRaven7.github.io/gentoo-ing-packages/` lets a
+  # stock Gentoo box `emerge --getbinpkg --usepkgonly` without pulling any
+  # container image. Mirrored only when a new :latest was actually pushed.
+  # continue-on-error: Pages must be enabled with the "GitHub Actions" source in
+  # repo settings; until then this job reports its reason and stays non-blocking.
+  publish-pages:
+    needs: publish
+    if: needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract overlay for the HTTP binrepo
+        run: |
+          docker pull ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          rm -rf _site
+          mkdir -p _site
+          cid=$(docker create ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest /bin/sh)
+          docker cp "${cid}:/var/cache/binhost/gentoo-ing/." _site/
+          docker rm "${cid}" >/dev/null
+          test -s _site/Packages && echo "HTTP binrepo prepared: $(du -sh _site | cut -f1)"
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

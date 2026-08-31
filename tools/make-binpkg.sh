@@ -18,6 +18,12 @@ set -euo pipefail
 #     build-time-only toolchains in config/prune.txt (rust/go, never needed by a
 #     --usepkgonly consumer), so the published image stays small
 #   - .manifest is the byte-stable summary the workflow diffs to skip no-op pushes
+#   - sccache (wired in as portage's ccache) caches compiles under
+#     /var/cache/sccache; the workflow round-trips that dir through its cache so
+#     unchanged compiles are not re-done every run
+#   - fail-closed: a run whose overlay cannot serve the FULL declared set (empty
+#     manifest or any config/packages.txt atom absent) exits non-zero, so a
+#     partial overlay never gets published to the sealed consumer
 
 BINHOST="/var/cache/binhost/gentoo-ing"
 EBUILDS="/app/ebuilds"
@@ -47,12 +53,16 @@ grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
 grep -q '^PKGDIR=' /etc/portage/make.conf \
     || echo "PKGDIR=${BINHOST}" >> /etc/portage/make.conf
 grep -q '^FEATURES=.*getbinpkg' /etc/portage/make.conf \
-    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance parallel-fetch parallel-install"' >> /etc/portage/make.conf
+    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance parallel-fetch parallel-install ccache"' >> /etc/portage/make.conf
 NPROC=$(nproc)
 grep -q '^MAKEOPTS=' /etc/portage/make.conf \
     || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
+grep -q '^CCACHE_DIR=' /etc/portage/make.conf \
+    || echo "CCACHE_DIR=/var/cache/sccache" >> /etc/portage/make.conf
+grep -q '^SCCACHE_DIR=' /etc/portage/make.conf \
+    || echo "SCCACHE_DIR=/var/cache/sccache" >> /etc/portage/make.conf
 
 # 4. Vendored ebuild overlay (bootc, gum, just) so the full set resolves.
 # The section name MUST equal the repo's internal name (profiles/repo_name).
@@ -97,13 +107,27 @@ EOF
 #    emerge is the real gate: a signature failure still aborts the build.
 getuto >/dev/null 2>&1 || true
 
-# 7. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
+# 7. sccache as portage's ccache. The gap set (bootc, gum, just, kernel, and the
+#    upcoming GNOME stack) is compiled here; sccache caches those C/C++/Rust
+#    compiles under /var/cache/sccache, which the workflow primes from its
+#    cache and saves back, so unchanged compiles reuse past results instead of
+#    rebuilding every run. sccache itself is build-env-only (never shipped:
+#    it is in config/prune.txt), and the shims make portage's FEATURES=ccache
+#    resolve through it.
+emerge --oneshot app-misc/sccache
+mkdir -p /var/cache/sccache
+mkdir -p /usr/lib/ccache/bin
+for target in ccache cc c++ gcc g++ clang clang++ x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
+    ln -sf /usr/bin/sccache "/usr/lib/ccache/bin/${target}"
+done
+
+# 8. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
 mkdir -p "${BINHOST}"
 if find /app/packages -name '*.tbz2' -o -name '*.gpkg.tar' | grep -q .; then
     cp -avf /app/packages/. "${BINHOST}/"
 fi
 
-# 8. Build the full overlay set. --getbinpkg mirrors official binaries where
+# 9. Build the full overlay set. --getbinpkg mirrors official binaries where
 #    the official host already carries an atom (same profile, same USE); only
 #    atoms it lacks actually compile. --buildpkg re-emits every merged package
 #    (closure included), making the overlay the consumer's sole binrepo.
@@ -112,19 +136,34 @@ if [ "${#BUILD_SET[@]}" -gt 0 ]; then
     emerge --update --deep --newuse "${BUILD_SET[@]}"
 fi
 
-# 9. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
+# 10. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
 emaint binhost --fix
 
-# 10. Prune the cache: drop superseded versions AND build-time-only toolchains
-#     (config/prune.txt never-ship list — rust/go chain), then re-index.
+# 11. Prune the cache: drop superseded versions AND build-time-only toolchains
+#     (config/prune.txt never-ship list — rust/go/sccache chain), then re-index.
 python3 /app/tools/prune-binhost.py --binhost "${BINHOST}" --prune-list /app/config/prune.txt
 emaint binhost --fix
 
-# 11. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
+# 12. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
 mkdir -p "${EBUILDS_EXPORT}"
 cp -avf "${EBUILDS}/." "${EBUILDS_EXPORT}/"
 
-# 12. Report
+# 13. Fail-closed: the overlay must actually serve the FULL declared set. A
+#     mirror miss or a silent compile failure would leave an atom out; handing
+#     a partial overlay to a sealed --usepkgonly consumer bricks its build, so
+#     exit non-zero (nothing gets published) instead.
+if [ ! -s "${BINHOST}/.manifest" ]; then
+    echo "FATAL: no binpkg(s) in overlay; nothing to publish" >&2
+    exit 1
+fi
+for atom in "${BUILD_SET[@]}"; do
+    if ! grep -q "^${atom}-" "${BINHOST}/.manifest"; then
+        echo "FATAL: ${atom} missing from overlay; not publishing a partial cache" >&2
+        exit 1
+    fi
+done
+
+# 14. Report
 count=$(find "${BINHOST}" -name '*.tbz2' -o -name '*.gpkg.tar' | wc -l)
 echo "OVERLAY: ${count} binpkg(s) in ${BINHOST}"
 echo "EBUILDS: exported to ${EBUILDS_EXPORT}"

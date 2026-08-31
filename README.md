@@ -65,6 +65,12 @@ dependency closure), the overlay is fully self-contained.
   are staged before the builds and indexed afterwards.
 - CI caches the emerge result per layer: an unchanged set is reused, so the
   factory only recompiles when a listed atom actually changes.
+- Compiles route through **sccache** (`/var/cache/sccache`), round-tripped
+  through the workflow cache between runs — unchanged compiles (bootc, gum,
+  just, kernel, and the upcoming GNOME stack) are not re-done every run.
+- **Fail-closed:** a run whose overlay cannot serve the full declared set
+  (empty manifest, or any `config/packages.txt` atom absent from it) exits
+  non-zero, so a partial cache is never published to the sealed consumer.
 - `main` publishes `ghcr.io/HuntedRaven7/gentoo-ing-packages:latest` plus a
   `:gitsha` tag. Pull requests build and validate only — never publish.
 - Consumers pin the image by digest (Renovate tracks the digest in the
@@ -92,6 +98,23 @@ doesn't have.
 `docker run` this image whenever you want "current stable binpkgs" — no touching
 individual machines.
 
+## HTTP binrepo (GitHub Pages)
+
+A publish also mirrors the cache as a plain HTTP Gentoo binrepo on GitHub
+Pages. Any stock Gentoo box can eat the bins without pulling a container:
+
+```bash
+echo 'PORTAGE_BINHOST="https://HuntedRaven7.github.io/gentoo-ing-packages/"' \
+  >> /etc/portage/make.conf
+emerge --getbinpkg --usepkgonly --oneshot <atom>
+```
+
+(The overlay carries the bootc/gum/just ebuilds only via the OCI image, so
+`::gentoo`-absent atoms still need the consumer overlay; the HTTP mirror serves
+the binpkg tree itself.) Enable it once in repo settings: **Settings → Pages →
+Source → GitHub Actions**. Until then the deploy job reports its reason and
+stays non-blocking.
+
 ## Security scanning (reports, not gates)
 
 `security-scan` (part of `publish.yml`) runs **syft** (SBOM, attached as an
@@ -107,6 +130,7 @@ scan job pulls the already-built stage instead of recompiling.
 just validate            # sanity-checks config, ebuild overlay, tree
 just show-package-set    # print the full overlay set the factory mirrors/builds
 just build               # build the image locally (mirrors + compiles the set)
+just prime-cache         # reuse the previous local build's sccache
 just push                # push ghcr.io/HuntedRaven7/gentoo-ing-packages:latest
 just seed                # stage official prebuilts into packages/ (optional)
 ```
