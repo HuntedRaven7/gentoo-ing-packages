@@ -1,27 +1,55 @@
-# Curated overlay package set.
+# The FULL gentoo-ing OS build set, mirror of build/10-build.sh PACKAGES in the
+# gentoo-ing repo plus sys-kernel/installkernel (a dependency of the kernel the
+# consumer resolves with USE=dracut, which the official binhost cannot serve).
 #
-# The set of atoms the gentoo-ing image expects this binhost overlay to
-# satisfy. It matches config/gap-build.txt: packages the official Gentoo
-# binhost does not ship, built once here and published as prebuilt binpkgs.
+# This repo is the consumer's ONLY source of packages: gentoo-ing is wired to
+# this overlay exclusively (--usepkgonly --binpkg-respect-use=y) and never
+# touches the official binhost at runtime.
 #
-# ci builds the binpkgs for everything on this list (tools/make-binpkg.sh uses
-# config/gap-build.txt); these lines drive tools/seed-binhost.py, which for any
-# atom the OFFICIAL binhost starts carrying can fetch the newest official
-# .tbz2 into packages/ as a faster "plop-in" starting point.
+# The maker resolves this set with --getbinpkg: when the official Gentoo
+# binhost carries the atom, its prebuilt binary is mirrored into this overlay
+# (same USE, same profile); when it does not (bootc, kernel, firmware, skopeo,
+# flatpak, iwd, jq, installkernel, gum, just), the atom is compiled here. Every
+# merged package -- atoms AND their dependency closure -- is re-emitted with
+# --buildpkg, so the overlay is fully self-contained and the consumer never
+# needs any binrepo but this one.
 #
-# sys-apps/bootc, app-shells/gum, and dev-util/just have no ::gentoo ebuild at
-# all — they can never be seeded; they exist only via the ebuilds/ overlay and
-# are built here. seed-binhost.py reports "no binpkg found" for them.
+# Three of the atoms (sys-apps/bootc, app-shells/gum, dev-util/just) have no
+# ebuild in ::gentoo at all; their live ebuilds live under ebuilds/ in this
+# repo and are exported to consumers for atom visibility.
 #
-# Format: one CPV or category/package prefix per line. '#' is a comment.
+# Format: one unslotted atom or category/package pattern per line. '#' is a
+# comment. Keep this list in sync with gentoo-ing/build/10-build.sh
+# (tools/sync-check.py asserts the parity in CI).
 
 sys-apps/bootc
-app-shells/gum
-dev-util/just
 sys-kernel/gentoo-kernel-bin
 sys-kernel/installkernel
 sys-kernel/linux-firmware
-app-containers/skopeo
-sys-apps/flatpak
+sys-apps/systemd
+sys-kernel/dracut
+dev-util/ostree
+sys-fs/btrfs-progs
+sys-fs/dosfstools
+sys-fs/e2fsprogs
+sys-fs/xfsprogs
+sys-fs/cryptsetup
+sys-fs/lvm2
+net-misc/openssh
+net-misc/curl
+net-misc/wget
 net-wireless/iwd
+app-containers/skopeo
+app-containers/podman
+app-admin/sudo
+net-misc/chrony
+app-arch/cpio
+app-arch/xz-utils
+sys-apps/bubblewrap
+dev-libs/glib
+sys-apps/dbus
+sys-apps/shadow
+app-shells/gum
+dev-util/just
 app-misc/jq
+sys-apps/flatpak

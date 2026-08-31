@@ -30,3 +30,7 @@ jobs:
 
       - name: Validate binhost tree and config
         run: python3 tools/validate.py
+
+      - name: Check parity with gentoo-ing build list
+        run: python3 tools/sync-check.py
+        shell: bash

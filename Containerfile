@@ -1,13 +1,16 @@
-# gentoo-ing-packages - curated Gentoo binary package host (binhost) for gentoo-ing.
+# gentoo-ing-packages - the full Gentoo binary package host (binhost) for gentoo-ing.
 #
 # This image has TWO jobs:
 #
-# 1. BUILD the gap set (config/gap-build.txt) — packages the official Gentoo
-#    binhost does not ship (bootc, kernel, firmware, skopeo, flatpak, iwd, jq,
-#    gum, just). They are compiled here, once per published image, and cached
-#    as binpkgs so gentoo-ing never compiles anything itself.
-# 2. PUBLISH a data-only image containing the finished binhost tree plus the
-#    ebuild overlay that gives consumers atom visibility for the packages
+# 1. SERVICE the FULL gentoo-ing set (config/packages.txt): mirror each atom the
+#    official Gentoo binhost already ships (systemd, ostree, podman, ...) as a
+#    prebuilt binary, and COMPILE the atoms it does not (bootc, kernel,
+#    firmware, skopeo, flatpak, iwd, jq, installkernel, gum, just) once per
+#    published image. --buildpkg emits a binpkg for every merged package, so the
+#    overlay is self-contained and consumers never compile or hit the official
+#    host at runtime.
+# 2. PUBLISH a data-only image containing the binhost tree plus the ebuild
+#    overlay that gives consumers atom visibility for the packages
 #    ::gentoo does not carry at all (bootc, gum, just).
 #
 #   /var/cache/binhost/gentoo-ing          -> binpkg tree + Packages index
@@ -17,9 +20,8 @@
 # gentoo-ing consumes it with `COPY --from=` pinned by digest, the same way the
 # finpilot factory pulls projectbluefin/common and ublue-os/brew.
 #
-# The official Gentoo binhost still does the heavy lifting: it supplies the
-# dependency binaries for the gap builds, and consumers resolve most packages
-# from it directly (priority 9999, below this overlay's 10000).
+# The official Gentoo binhost is used ONLY inside the maker stage: it supplies
+# the mirrored binaries and the dependency binaries for compiled gaps.
 
 ARG GENTOO_IMAGE="gentoo/stage3:systemd"
 FROM ${GENTOO_IMAGE} AS maker
@@ -35,7 +37,7 @@ ENV PKGDIR="/var/cache/binhost/gentoo-ing"
 
 # stage3 docker images are stripped: no portage tree ships. Bootstrap a
 # snapshot here in its own layer so source changes do not pay the sync cost
-# (the weekly cycle forces a fresh one with SYNC_PORTAGE=1).
+# (the scheduled update cycle forces a fresh one with SYNC_PORTAGE=1).
 RUN emerge-webrsync
 
 COPY tools /app/tools

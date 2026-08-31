@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the gentoo-ing binhost overlay: compile the gap set (config/gap-build.txt)
-# that the official Gentoo binhost does not ship, publish them as a self-contained
-# binpkg tree, and export the vendored ebuild overlay for consumer atom visibility.
+# Build the gentoo-ing binhost overlay: compile or mirror the FULL consumer
+# package set (config/packages.txt — same list as gentoo-ing/build/10-build.sh)
+# and publish it as a self-contained binpkg tree, plus export the vendored
+# ebuild overlay for consumer atom visibility.
 #
-# Designed to run on every publish AND on the weekly update cycle (SYNC_PORTAGE=1):
+# Designed to run on every publish AND on the scheduled update cycle
+# (SYNC_PORTAGE=1):
 #   - a fresh tree sync makes -uDN discover version bumps
-#   - --buildpkg only emits a binpkg for what actually merged (unchanged packages
-#     are not re-packaged, so unchanged runs are cheap + cached)
+#   - --getbinpkg mirrors official binaries for atoms the official host already
+#     carries (no wasteful recompiles); atoms it does not ship are compiled here
+#   - --buildpkg emits a binpkg for every merged package (atoms AND dependency
+#     closure), so the overlay is the consumer's only source
+#   - unchanged packages are not re-packaged, so unchanged runs are cheap + cached
 #   - prune-binhost.py keeps only the newest version per package, so the published
 #     image stays bounded (no stacked superseded tbz2s)
 #   - .manifest is the byte-stable summary the workflow diffs to skip no-op pushes
@@ -20,7 +25,7 @@ OFFICIAL_BINHOST="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x
 BRANCH_PROFILE="default/linux/amd64/23.0/systemd"
 
 # 1. Portage tree. stage3 images ship a snapshot; SYNC_PORTAGE fetches a fresh
-#    one for the weekly update cycle.
+#    one for the scheduled (every 2 days) update cycle.
 if [ ! -d /var/db/repos/gentoo/profiles ]; then
     emerge-webrsync || emerge --sync
 elif [ "${SYNC_PORTAGE:-0}" = "1" ]; then
@@ -31,9 +36,10 @@ fi
 rm -f /etc/portage/make.profile
 ln -s "/var/db/repos/gentoo/profiles/${BRANCH_PROFILE}" /etc/portage/make.profile
 
-# 3. make.conf. Binpkg-respect-use=n: the official deps are accepted as-is so
-# only the gap atoms compile. --buildpkg emits every merged package into
-# PKGDIR (the overlay is then self-contained for its guaranteed set).
+# 3. make.conf. Binpkg-respect-use=n: mirrored official binaries keep their
+#    official USE flags, and only atoms the official host truly lacks are
+#    compiled. --buildpkg emits every merged package into PKGDIR (the overlay
+#    is then self-contained for the entire consumer set).
 touch /etc/portage/make.conf
 grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
     || echo 'ACCEPT_LICENSE="*"' >> /etc/portage/make.conf
@@ -47,7 +53,7 @@ grep -q '^MAKEOPTS=' /etc/portage/make.conf \
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
     || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
 
-# 4. Vendored ebuild overlay (bootc, gum, just) so the gap atoms resolve.
+# 4. Vendored ebuild overlay (bootc, gum, just) so the full set resolves.
 # The section name MUST equal the repo's internal name (profiles/repo_name).
 mkdir -p /etc/portage/repos.conf
 cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
@@ -96,12 +102,13 @@ if find /app/packages -name '*.tbz2' -o -name '*.gpkg.tar' | grep -q .; then
     cp -avf /app/packages/. "${BINHOST}/"
 fi
 
-# 8. Update (no-op when nothing is stale) and emit binpkgs for what merged.
-#    Deps come from the official binhost as binaries; only atoms the official
-#    host lacks actually compile here.
-mapfile -t GAPS < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' /app/config/gap-build.txt)
-if [ "${#GAPS[@]}" -gt 0 ]; then
-    emerge --update --deep --newuse "${GAPS[@]}"
+# 8. Build the full overlay set. --getbinpkg mirrors official binaries where
+#    the official host already carries an atom (same profile, same USE); only
+#    atoms it lacks actually compile. --buildpkg re-emits every merged package
+#    (closure included), making the overlay the consumer's sole binrepo.
+mapfile -t BUILD_SET < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' /app/config/packages.txt)
+if [ "${#BUILD_SET[@]}" -gt 0 ]; then
+    emerge --update --deep --newuse "${BUILD_SET[@]}"
 fi
 
 # 9. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.

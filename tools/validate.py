@@ -2,8 +2,7 @@
 """Validate the binhost repository.
 
 Checks:
-  * config/packages.txt parses (no misformed patterns)
-  * config/gap-build.txt parses and its atoms are a subset of packages.txt
+  * config/packages.txt parses (no misformed atoms)
   * packages/ tree contains only .tbz2 binaries (no stray committed Packages)
   * the vendored ebuild overlay carries the three no-::gentoo atoms
     (sys-apps/bootc, app-shells/gum, dev-util/just) and repo glue
@@ -37,30 +36,8 @@ def check_config() -> list[str]:
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        if "=" in line:
-            line = line.split("=", 1)[1]
         if not PATTERN.match(line):
-            errors.append(f"config/packages.txt:{lineno}: malformed pattern {line!r}")
-    return errors
-
-
-def check_gaps() -> list[str]:
-    errors = []
-    gaps = ROOT / "config/gap-build.txt"
-    if not gaps.is_file():
-        return ["missing config/gap-build.txt"]
-    atoms = parse_list(gaps)
-    for lineno, atom in enumerate(gaps.read_text().splitlines(), 1):
-        atom = atom.strip()
-        if not atom or atom.startswith("#"):
-            continue
-        if not PATTERN.match(atom):
-            errors.append(f"config/gap-build.txt:{lineno}: malformed atom {atom!r}")
-    curated = set(parse_list(ROOT / "config/packages.txt"))
-    missing_from_curated = set(atoms) - curated
-    if missing_from_curated:
-        bad = ", ".join(sorted(missing_from_curated))
-        errors.append(f"config/gap-build.txt atoms missing from packages.txt: {bad}")
+            errors.append(f"config/packages.txt:{lineno}: malformed atom {line!r}")
     return errors
 
 
@@ -107,7 +84,6 @@ def check_ebuilds_overlay() -> list[str]:
 def main() -> None:
     errors = (
         check_config()
-        + check_gaps()
         + check_packages_tree()
         + check_ebuilds_overlay()
     )
@@ -117,8 +93,8 @@ def main() -> None:
             print(f"  - {err}")
         sys.exit(1)
     n = sum(1 for p in (ROOT / "packages").rglob("*.tbz2"))
-    gaps = len(parse_list(ROOT / "config/gap-build.txt"))
-    print(f"OK: config parses; {gaps} gap atom(s) to build; ebuild overlay intact; {n} binpkg(s) staged in packages/")
+    count = len(parse_list(ROOT / "config/packages.txt"))
+    print(f"OK: config parses; {count} atom(s) in the overlay set; ebuild overlay intact; {n} binpkg(s) staged in packages/")
     if n == 0:
         print("note: packages/ is empty; optional — `just seed` can stage official prebuilts.")
 

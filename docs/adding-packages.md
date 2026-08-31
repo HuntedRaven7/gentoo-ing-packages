@@ -1,30 +1,42 @@
 # Adding or updating a package in the binhost
 
-The binhost is a curated overlay with a hard guarantee: **the consumer image
-(`gentoo-ing`) never compiles anything.** Anything `::gentoo`'s official binhost
-does not ship must be built *here* and published as a binpkg.
+The binhost serves the **entire** `gentoo-ing` set: the consumer image never
+compiles anything and never talks to the official Gentoo binhost at runtime.
+Everything it pins must exist as a binpkg here — either mirrored from the
+official binhost or compiled in this factory.
 
-Two lists drive the repo:
+One list drives the repo:
 
-- `config/gap-build.txt` — atoms the factory **builds to binpkg** each publish.
-- `config/packages.txt` — the curated set the overlay guarantees (the atoms in
-  `gap-build.txt` plus anything staged as a ready-made `.tbz2`), mirrored into
-  `seed-binhost.py`'s fetch list.
+- `config/packages.txt` — the **full overlay set** that gets mirrored/compiled
+  into binpkg each publish. It is a mirror of the `PACKAGES` array in the
+  consumer's `gentoo-ing/build/10-build.sh` (plus `sys-kernel/installkernel`)
+  and `tools/sync-check.py` fails CI if the two lists drift.
 
-The rule that decides everything: **the overlay wins**. `gentoo-ing` configures
-`binrepos.conf` with this repo at `priority = 10000` and the official Gentoo
-binhost at `priority = 9999`, so anything we publish replaces the official
-version during `emerge --getbinpkg --usepkgonly`.
+The rule that decides everything: **the overlay wins, and it is the only
+binrepo the consumer configures** at `priority = 10000`. Anything staged here
+or published replaces any prior version during `emerge --usepkgonly`.
 
-## Case 1 — `::gentoo` has an ebuild but the official binhost does not ship it
+## Case 1 — the official binhost carries the atom
 
-The common case (kernel, firmware, skopeo, flatpak, iwd, jq …).
+The common case (systemd, ostree, podman, glib …). Add the atom to
+`config/packages.txt`, and the next build **mirrors** the official prebuilt
+binary (same profile, same USE) into the overlay. Nothing compiles; your only
+job is keeping the list in parity with the consumer.
 
-1. Add the atom to `config/gap-build.txt` and `config/packages.txt`.
-2. The next `just build` / CI run compiles it in the `maker` stage (deps come as
-   binaries from the official host) and publishes the binpkg.
+## Case 2 — `::gentoo` has an ebuild but the official binhost does not ship it
 
-## Case 2 — `::gentoo` has no ebuild at all
+Kernel, firmware, skopeo, flatpak, iwd, jq, installkernel … the factory
+**compiles** these in the `maker` stage (dependency binaries come as official
+prebuilds) and publishes the binpkg.
+
+1. Add the atom to `config/packages.txt`.
+2. The next `just build` / CI run compiles it and emits the binpkg.
+3. If the atom has dependency-visible USE overrides (like
+   `sys-kernel/installkernel dracut`), declare them in
+   `tools/make-binpkg.sh`'s `package.use` drop-in **and** on the consumer side,
+   so `--binpkg-respect-use=y` matches.
+
+## Case 3 — `::gentoo` has no ebuild at all
 
 bootc, gum, and just work this way. Add a live ebuild under
 `ebuilds/<category>/<pkg>/<pkg>-9999.ebuild` (root overlay glue lives in
@@ -32,7 +44,7 @@ bootc, gum, and just work this way. Add a live ebuild under
 exported to consumers so the atom resolves there too). Stable `KEYWORDS="amd64"`
 keeps consumers on their stable-only diet.
 
-## Case 3 — stage a ready-made .tbz2 (fast path)
+## Case 4 — stage a ready-made .tbz2 (fast path)
 
 Skip the factory's compile by dropping an existing binary into `packages/`
 (also pulls the newest official build for atoms the official host now carries):
@@ -52,23 +64,22 @@ staged binaries win and nothing gets recompiled unnecessarily.
 
 The factory compiles with prebuilt toolchains (`dev-lang/rust-bin`,
 `dev-lang/go`, plus `dev-lang/go-bootstrap`) special-cased as `~amd64` in
-`tools/make-binpkg.sh` — the gap binaries themselves stay stable-visible to
-consumers. Keep that special-casing to the toolchain atoms.
+`tools/make-binpkg.sh` — the compiled binaries themselves stay stable-visible
+to consumers. Keep that special-casing to the toolchain atoms.
 
-## Weekly refresh (the update cycle)
+## Update cycle (every 2 days)
 
-A weekly cron in `publish.yml` rebuilds the binhost with a **fresh portage
-tree** (`SYNC_PORTAGE=1`), so each gap atom (and its dependency closure) tracks
-current stable automatically. `emerge --buildpkg` only emits binpkg changes for
-what actually merged; `tools/prune-binhost.py` then keeps just the newest
-version per package, and a manifest diff against the published image skips the
-push when nothing moved. You rarely need to bump a package by hand — the
-weekly cycle does it.
+A cron in `publish.yml` (`30 3 */2 * *`) rebuilds the binhost with a **fresh
+portage tree** (`SYNC_PORTAGE=1`), so the full set tracks current stable
+automatically. `emerge --buildpkg` only emits binpkg changes for what actually
+moved; `tools/prune-binhost.py` then keeps just the newest version per package,
+and a manifest diff against the published image skips the push when nothing
+changed. You rarely need to bump a package by hand — the cycle does it.
 
 ## After changes
 
 ```bash
-just validate        # sanity-checks config, gap list, ebuild overlay, tree
+just validate        # sanity-checks config, ebuild overlay, tree
 git add config ebuilds packages && git commit -m "feat(binhost): add/update <pkg>"
 git push
 ```

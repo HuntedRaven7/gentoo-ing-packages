@@ -14,11 +14,12 @@ on:
       - "tools/**"
       - ".github/workflows/*"
   schedule:
-    # Weekly update cycle: a fresh portage tree (SYNC_PORTAGE=1) lets -uDN move
-    # the gap set (and its dependency closure) to current stable versions. The
+    # Update cycle (every 2 days): a fresh portage tree (SYNC_PORTAGE=1) lets
+    # -uDN move the full overlay set (and its dependency closure) to current
+    # stable versions, both compiled gaps and mirrored official binaries. The
     # manifest-diff step then skips the push entirely when nothing moved, so the
     # registry only advances when a package actually changes.
-    - cron: "30 3 * * 0"
+    - cron: "30 3 */2 * *"
   workflow_dispatch:
 
 permissions:
@@ -48,8 +49,8 @@ jobs:
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
-          # Weekly cron refreshes the portage tree so updates are discovered;
-          # normal pushes reuse the tree as-is.
+          # Scheduled update cycle refreshes the portage tree so updates are
+          # discovered; normal pushes reuse the tree as-is.
           sync=0
           [ "${{ github.event_name }}" = "schedule" ] && sync=1
           echo "SYNC_PORTAGE=${sync}" >> "${GITHUB_ENV}"
