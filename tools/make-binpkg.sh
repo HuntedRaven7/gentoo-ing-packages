@@ -116,7 +116,7 @@ getuto >/dev/null 2>&1 || true
 #    invocation name when exec'ing the real compiler, so GCC keeps its g++/gcc
 #    language semantics in configure probes (this is exactly what a bootstrap
 #    whose C++ checks all failed was missing).
-emerge --oneshot sys-devel/ccache
+emerge --oneshot dev-util/ccache
 mkdir -p /var/cache/ccache
 mkdir -p /usr/lib/ccache/bin
 ln -sf /usr/bin/ccache /usr/lib/ccache/bin/ccache
