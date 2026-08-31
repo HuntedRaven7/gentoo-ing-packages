@@ -67,14 +67,22 @@ The factory compiles with prebuilt toolchains (`dev-lang/rust-bin`,
 `tools/make-binpkg.sh` — the compiled binaries themselves stay stable-visible
 to consumers. Keep that special-casing to the toolchain atoms.
 
+Those same toolchains are BDEPEND-only (the consumer seals itself to binpkgs
+and never compiles, so it can never install them), so they are pruned from the
+cache before publishing: `config/prune.txt` is the permanent never-ship list,
+and `tools/prune-binhost.py` drops them alongside superseded versions. If a
+toolchain ever needs to ship, delete its line from `config/prune.txt`, and keep
+the list in sync with the `~amd64` keywords above.
+
 ## Update cycle (every 2 days)
 
 A cron in `publish.yml` (`30 3 */2 * *`) rebuilds the binhost with a **fresh
 portage tree** (`SYNC_PORTAGE=1`), so the full set tracks current stable
 automatically. `emerge --buildpkg` only emits binpkg changes for what actually
-moved; `tools/prune-binhost.py` then keeps just the newest version per package,
-and a manifest diff against the published image skips the push when nothing
-changed. You rarely need to bump a package by hand — the cycle does it.
+moved; `tools/prune-binhost.py` then keeps just the newest version per package
+and drops the never-ship toolchains, and a manifest diff against the published
+image skips the push when nothing changed. You rarely need to bump a package by
+hand — the cycle does it.
 
 ## After changes
 

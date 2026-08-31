@@ -1,0 +1,21 @@
+# Cache pruning policy: build-time-only packages that must NEVER ship to
+# consumers.
+#
+# The consumer (gentoo-ing) installs from this overlay with --usepkgonly and
+# never compiles anything. Its dependency closure therefore only ever contains
+# runtime (RDEPEND) packages — build-only dependencies (BDEPEND) are the
+# maker's concern, fetched fresh from the official binhost during each build.
+#
+# --buildpkg re-emits every package the maker merges, which includes these
+# resolved build-only toolchains; shipping them would bloat the cache with
+# packages the consumer can never install. prune-binhost.py drops any binpkg
+# whose category/package matches a line here before the Packages index and
+# the published image are produced.
+#
+# Each entry is an exact category/package atom used purely at build time.
+# Keep this list in sync with the ~amd64 toolchain keywords in
+# tools/make-binpkg.sh.
+
+dev-lang/rust-bin
+dev-lang/go
+dev-lang/go-bootstrap

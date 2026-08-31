@@ -3,6 +3,7 @@
 
 Checks:
   * config/packages.txt parses (no misformed atoms)
+  * config/prune.txt parses (never-ship category/package atoms)
   * packages/ tree contains only .tbz2 binaries (no stray committed Packages)
   * the vendored ebuild overlay carries the three no-::gentoo atoms
     (sys-apps/bootc, app-shells/gum, dev-util/just) and repo glue
@@ -81,9 +82,24 @@ def check_ebuilds_overlay() -> list[str]:
     return errors
 
 
+def check_prune_list() -> list[str]:
+    errors = []
+    prune = ROOT / "config/prune.txt"
+    if not prune.is_file():
+        return ["missing config/prune.txt"]
+    for lineno, line in enumerate(prune.read_text().splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if not PATTERN.match(line):
+            errors.append(f"config/prune.txt:{lineno}: malformed atom {line!r}")
+    return errors
+
+
 def main() -> None:
     errors = (
         check_config()
+        + check_prune_list()
         + check_packages_tree()
         + check_ebuilds_overlay()
     )
@@ -94,7 +110,8 @@ def main() -> None:
         sys.exit(1)
     n = sum(1 for p in (ROOT / "packages").rglob("*.tbz2"))
     count = len(parse_list(ROOT / "config/packages.txt"))
-    print(f"OK: config parses; {count} atom(s) in the overlay set; ebuild overlay intact; {n} binpkg(s) staged in packages/")
+    pruned = len(parse_list(ROOT / "config/prune.txt"))
+    print(f"OK: config parses; {count} atom(s) in the overlay set; {pruned} never-ship prune entry(s); ebuild overlay intact; {n} binpkg(s) staged in packages/")
     if n == 0:
         print("note: packages/ is empty; optional — `just seed` can stage official prebuilts.")
 

@@ -41,3 +41,8 @@ seed binhost_root="" BASE="https://distfiles.gentoo.org/releases/amd64/binpackag
 [group('Tooling')]
 show-package-set:
     sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/packages.txt
+
+# Show the never-ship build-time-only toolchains pruned from the cache
+[group('Tooling')]
+show-prune-list:
+    sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/prune.txt

@@ -14,8 +14,9 @@ set -euo pipefail
 #   - --buildpkg emits a binpkg for every merged package (atoms AND dependency
 #     closure), so the overlay is the consumer's only source
 #   - unchanged packages are not re-packaged, so unchanged runs are cheap + cached
-#   - prune-binhost.py keeps only the newest version per package, so the published
-#     image stays bounded (no stacked superseded tbz2s)
+#   - prune-binhost.py keeps only the newest version per package AND drops the
+#     build-time-only toolchains in config/prune.txt (rust/go, never needed by a
+#     --usepkgonly consumer), so the published image stays small
 #   - .manifest is the byte-stable summary the workflow diffs to skip no-op pushes
 
 BINHOST="/var/cache/binhost/gentoo-ing"
@@ -114,8 +115,9 @@ fi
 # 9. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
 emaint binhost --fix
 
-# 10. Prune superseded versions (bounds the image) and re-index.
-python3 /app/tools/prune-binhost.py --binhost "${BINHOST}"
+# 10. Prune the cache: drop superseded versions AND build-time-only toolchains
+#     (config/prune.txt never-ship list — rust/go chain), then re-index.
+python3 /app/tools/prune-binhost.py --binhost "${BINHOST}" --prune-list /app/config/prune.txt
 emaint binhost --fix
 
 # 11. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).

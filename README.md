@@ -75,11 +75,18 @@ dependency closure), the overlay is fully self-contained.
 `publish.yml` runs on a cron too (`30 3 */2 * *`) with `SYNC_PORTAGE=1`: the
 maker stage refreshes the portage tree, runs `emerge --update --deep --newuse`
 over `config/packages.txt`, re-mirrors/repackages only what actually moved, and
-prunes superseded versions. A manifest-diff step (`tools/prune-binhost.py`
-writes a byte-stable `.manifest` of the overlay) compares against the currently
-published image — if no package version changed, the push is skipped entirely.
-The OCI image stays bounded (one newest binpkg per package, not a growing pile
-of old `.tbz2`s), and GH Actions only ever compiles what the official binhost
+prunes stale content. The prune policy keeps the cache intentionally small:
+
+- one version per package (`tools/prune-binhost.py` deletes superseded builds),
+- build-time-only toolchains never ship (`config/prune.txt` — the rust/go
+  chain is BDEPEND-only, so a `--usepkgonly` consumer can never install it;
+  dropping it removes gigabytes of dead weight).
+
+A manifest-diff step (`tools/prune-binhost.py` writes a byte-stable
+`.manifest` of the overlay) compares against the currently published image —
+if no package version changed, the push is skipped entirely. The OCI image
+stays bounded (one newest binpkg per package, not a growing pile of old
+`.tbz2`s), and GH Actions only ever compiles what the official binhost
 doesn't have.
 
 `docker run` this image whenever you want "current stable binpkgs" — no touching
