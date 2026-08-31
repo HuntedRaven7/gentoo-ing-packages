@@ -24,7 +24,14 @@ from functools import cmp_to_key
 from pathlib import Path
 
 try:
-    from portage.versions import vercmp
+    from portage.versions import vercmp as _raw_vercmp
+
+    def vercmp(a: str, b: str) -> int:
+        result = _raw_vercmp(a, b)
+        if result is not None:
+            return result
+        return (a > b) - (a < b)
+
 except ImportError:  # local/dev fallback (image always has portage)
     def vercmp(a: str, b: str) -> int:
         return (a > b) - (a < b)
