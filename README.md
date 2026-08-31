@@ -33,16 +33,25 @@ compiled atoms, plus the mirrored set); the consumer never resolves from it.
 `PACKAGES` list in `gentoo-ing/build/10-build.sh` plus `sys-kernel/installkernel`
 (a kernel dependency resolved with `USE=dracut`, which the official binhost
 cannot serve). It covers bootc, kernel + firmware, systemd, dracut, ostree,
-podman, skopeo, flatpak, flatpak deps, iwd, jq, gum, just, and everything else
-the image lists.
+podman, skopeo, flatpak, flatpak deps, iwd, jq, gum, just, the full **GNOME
+desktop** (`gnome-base/gnome`, GDM, NetworkManager), and everything else the
+image lists. Both repos run the `default/linux/amd64/23.0/desktop/gnome/systemd`
+profile so the maker's compiled closure exactly matches what the consumer's
+strict `--binpkg-respect-use=y` will request.
 
 Which atoms actually compile here:
 
-- Atom the official binhost carries (systemd, ostree, podman, …)
-  → **mirrored**: fetched as the official prebuilt binary, same USE/profile,
-  re-emitted into our overlay. No wasteful recompiles.
-- Atom the official binhost lacks (bootc, kernel, firmware, installkernel,
-  skopeo, flatpak, iwd, jq) → **compiled** here once per published image.
+- Atom the official binhost carries **with identical USE flags** (the base
+  system packages it builds on the bare systemd profile that match this gnome
+  profile — systemd, ostree, podman dependency tree, …) → **mirrored**: fetched
+  as the official prebuilt binary, re-emitted into our overlay.
+- Atom whose USE flags diverge from the official host **or** that the official
+  host lacks (the desktop closure, bootc, kernel, firmware, installkernel,
+  skopeo, flatpak, iwd, jq) → **compiled** here once per published image. The
+  maker resolves with `--binpkg-respect-use=y` — the same strict policy as the
+  consumer — so every binpkg it emits satisfies the consumer's USE match and
+  nothing non-matching can brick the sealed build. Full GNOME (`gnome-base/gnome`)
+  is mostly compiled for this reason.
 - `sys-apps/bootc`, `app-shells/gum`, `dev-util/just` have no `::gentoo` ebuild
   at all; their live ebuilds live in `ebuilds/` and are exported for atom
   visibility.

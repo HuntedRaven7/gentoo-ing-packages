@@ -7,12 +7,14 @@
 # touches the official binhost at runtime.
 #
 # The maker resolves this set with --getbinpkg: when the official Gentoo
-# binhost carries the atom, its prebuilt binary is mirrored into this overlay
-# (same USE, same profile); when it does not (bootc, kernel, firmware, skopeo,
-# flatpak, iwd, jq, installkernel, gum, just), the atom is compiled here. Every
-# merged package -- atoms AND their dependency closure -- is re-emitted with
-# --buildpkg, so the overlay is fully self-contained and the consumer never
-# needs any binrepo but this one.
+# binhost carries the atom with USE flags identical to this repo's profile
+# (default/linux/amd64/23.0/desktop/gnome/systemd — the same profile the
+# consumer uses), its prebuilt binary is mirrored into this overlay; when its
+# USE diverge (most of the desktop closure) or the atom is absent (bootc,
+# kernel, firmware, skopeo, flatpak, iwd, jq, installkernel, gum, just), the
+# atom is compiled here. Every merged package -- atoms AND their dependency
+# closure -- is re-emitted with --buildpkg, so the overlay is fully
+# self-contained and the consumer never needs any binrepo but this one.
 #
 # Three of the atoms (sys-apps/bootc, app-shells/gum, dev-util/just) have no
 # ebuild in ::gentoo at all; their live ebuilds live under ebuilds/ in this
@@ -53,3 +55,7 @@ app-shells/gum
 dev-util/just
 app-misc/jq
 sys-apps/flatpak
+gnome-base/gnome
+gnome-base/gdm
+net-misc/networkmanager
+net-wireless/iwd
