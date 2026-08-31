@@ -114,7 +114,7 @@ getuto >/dev/null 2>&1 || true
 #    rebuilding every run. sccache itself is build-env-only (never shipped:
 #    it is in config/prune.txt), and the shims make portage's FEATURES=ccache
 #    resolve through it.
-emerge --oneshot app-misc/sccache
+emerge --oneshot dev-util/sccache
 mkdir -p /var/cache/sccache
 mkdir -p /usr/lib/ccache/bin
 for target in ccache cc c++ gcc g++ clang clang++ x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
