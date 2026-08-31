@@ -139,19 +139,29 @@ if [ "${#BUILD_SET[@]}" -gt 0 ]; then
     emerge --update --deep --newuse "${BUILD_SET[@]}"
 fi
 
-# 10. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
+# 10. Ensure every BUILD_SET atom has a binpkg in the overlay. --buildpkg only
+#     emits for source builds; packages installed as binaries from the official
+#     host (mirrors) never produce a binpkg in PKGDIR. quickpkg packages them
+#     from the installed VDB so the consumer's --usepkgonly can find them.
+for atom in "${BUILD_SET[@]}"; do
+    if ! grep -q "^${atom}-" "${BINHOST}/.manifest" 2>/dev/null; then
+        PKGDIR="${BINHOST}" quickpkg --include-config=y "${atom}" 2>/dev/null || true
+    fi
+done
+
+# 11. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
 emaint binhost --fix
 
-# 11. Prune the cache: drop superseded versions AND build-time-only toolchains
+# 12. Prune the cache: drop superseded versions AND build-time-only toolchains
 #     (config/prune.txt never-ship list — rust/go/ccache chain), then re-index.
 python3 /app/tools/prune-binhost.py --binhost "${BINHOST}" --prune-list /app/config/prune.txt
 emaint binhost --fix
 
-# 12. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
+# 13. Export the ebuild overlay for consumers (atom visibility for bootc/gum/just).
 mkdir -p "${EBUILDS_EXPORT}"
 cp -avf "${EBUILDS}/." "${EBUILDS_EXPORT}/"
 
-# 13. Fail-closed: the overlay must actually serve the FULL declared set. A
+# 14. Fail-closed: the overlay must actually serve the FULL declared set. A
 #     mirror miss or a silent compile failure would leave an atom out; handing
 #     a partial overlay to a sealed --usepkgonly consumer bricks its build, so
 #     exit non-zero (nothing gets published) instead.
@@ -166,7 +176,7 @@ for atom in "${BUILD_SET[@]}"; do
     fi
 done
 
-# 14. Report
+# 15. Report
 count=$(find "${BINHOST}" -name '*.tbz2' -o -name '*.gpkg.tar' | wc -l)
 echo "OVERLAY: ${count} binpkg(s) in ${BINHOST}"
 echo "EBUILDS: exported to ${EBUILDS_EXPORT}"
