@@ -29,7 +29,7 @@ BINHOST="/var/cache/binhost/gentoo-ing"
 EBUILDS="/app/ebuilds"
 EBUILDS_EXPORT="/var/cache/binhost/gentoo-ing-ebuilds"
 OFFICIAL_BINHOST="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/"
-BRANCH_PROFILE="default/linux/amd64/23.0/desktop/gnome/systemd"
+BRANCH_PROFILE="default/linux/amd64/23.0/systemd"
 
 # 1. Portage tree. stage3 images ship a snapshot; SYNC_PORTAGE fetches a fresh
 #    one for the scheduled (every 2 days) update cycle.
@@ -43,15 +43,10 @@ fi
 rm -f /etc/portage/make.profile
 ln -s "/var/db/repos/gentoo/profiles/${BRANCH_PROFILE}" /etc/portage/make.profile
 
-# 3. make.conf. Binpkg-respect-use=y (same as the consumer): the maker only
-#    mirrors an official binary when its USE flags already match this profile's
-#    (the gnome desktop profile the consumer also uses); everything whose USE
-#    differs — the bulk of the desktop closure the official host builds on the
-#    bare systemd profile — is compiled here. This GUARANTEES the emitted
-#    binpkgs satisfy the consumer's strict --binpkg-respect-use=y, so a
-#    non-matching mirrored binary can never slip into the overlay and brick the
-#    sealed consumer build. --buildpkg emits every merged package into PKGDIR
-#    (the overlay is then self-contained for the entire consumer set).
+# 3. make.conf. Binpkg-respect-use=n: mirrored official binaries keep their
+#    official USE flags, and only atoms the official host truly lacks are
+#    compiled. --buildpkg emits every merged package into PKGDIR (the overlay
+#    is then self-contained for the entire consumer set).
 touch /etc/portage/make.conf
 grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
     || echo 'ACCEPT_LICENSE="*"' >> /etc/portage/make.conf
@@ -63,7 +58,7 @@ NPROC=$(nproc)
 grep -q '^MAKEOPTS=' /etc/portage/make.conf \
     || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
 grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
-    || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=y"' >> /etc/portage/make.conf
+    || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=n"' >> /etc/portage/make.conf
 grep -q '^CCACHE_DIR=' /etc/portage/make.conf \
     || echo "CCACHE_DIR=/var/cache/ccache" >> /etc/portage/make.conf
 
@@ -135,11 +130,10 @@ if find /app/packages -name '*.tbz2' -o -name '*.gpkg.tar' | grep -q .; then
     cp -avf /app/packages/. "${BINHOST}/"
 fi
 
-# 9. Build the full overlay set. --getbinpkg mirrors official binaries only
-#    where their USE match this profile (--binpkg-respect-use=y); atoms whose
-#    USE diverge or that the official host lacks compile (the desktop/GNOME
-#    closure). --buildpkg re-emits every merged package (closure included),
-#    making the overlay the consumer's sole binrepo.
+# 9. Build the full overlay set. --getbinpkg mirrors official binaries where
+#    the official host already carries an atom (same profile, same USE); only
+#    atoms it lacks actually compile. --buildpkg re-emits every merged package
+#    (closure included), making the overlay the consumer's sole binrepo.
 mapfile -t BUILD_SET < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' /app/config/packages.txt)
 if [ "${#BUILD_SET[@]}" -gt 0 ]; then
     emerge --update --deep --newuse "${BUILD_SET[@]}"
