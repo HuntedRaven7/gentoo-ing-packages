@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
 """Assert config/packages.txt <=> gentoo-ing/build/10-build.sh PACKAGES parity.
 
-The gentoo-ing-packages repo is the consumer's ONLY binrepo: it must carry
-every atom gentoo-ing asks for, or the consumer's --usepkgonly build fails.
-This script fails the build when drift goes either way:
+The gentoo-ing-packages repo is the consumer's base binrepo: it must carry
+every atom gentoo-ing asks for (except the module overlay's), or the
+consumer's --usepkgonly build fails. This script fails the build when drift
+goes either way:
 
   * an atom added to gentoo-ing build/10-build.sh but missing here
     (consumer would hard-fail at image build time)
   * an atom present here but not requested by the consumer
     (dead cargo bloat in the overlay)
 
-sys-kernel/installkernel is required in the build set regardless: it is a
-kernel dependency the consumer resolves with USE=dracut, and the official
-binhost ships no installkernel binpkg, so it must be compiled in the factory.
+Two atoms are exempt, each in the opposite direction:
+
+  * sys-kernel/installkernel (FORCED) is required in the build set regardless:
+    the consumer resolves it WITH USE=dracut and the official binhost ships no
+    installkernel binpkg, so it must be compiled here in the factory (it also
+    prunes out of the akmods overlay).
+  * x11-drivers/nvidia-drivers (EXTERNAL) is requested by the consumer but
+    must NOT be built here: it is the out-of-tree kernel module, shipped from
+    the gentoo-ing-akmods module overlay (built against the consumer's exact
+    kernel). Compiling it in this repo would target the wrong kernel.
 
 Usage: tools/sync-check.py [consumer 10-build.sh URL]
 """
@@ -29,6 +37,7 @@ CONSUMER_LIST_URL = (
     "https://raw.githubusercontent.com/HuntedRaven7/gentoo-ing/main/build/10-build.sh"
 )
 FORCED = {"sys-kernel/installkernel"}
+EXTERNAL = {"x11-drivers/nvidia-drivers"}
 
 ARRAY = re.compile(r"PACKAGES=\((.*?)\)", re.DOTALL)
 ATOM = re.compile(r"^\s*([-\w]+/[-\w]+)\s*$")
@@ -55,14 +64,15 @@ def main() -> None:
     overlay = parse_list(ROOT / "config/packages.txt")
     url = sys.argv[1] if len(sys.argv) > 1 else CONSUMER_LIST_URL
     consumer = fetch_consumer_atoms(url)
-    expected = consumer | FORCED
+    expected = (consumer - EXTERNAL) | FORCED
 
     missing = sorted(expected - overlay)
     extra = sorted(overlay - expected)
 
     if not missing and not extra:
         n = len(overlay)
-        print(f"OK: config/packages.txt matches gentoo-ing PACKAGES (+{sorted(FORCED)}); {n} atom(s)")
+        print(f"OK: config/packages.txt matches gentoo-ing PACKAGES "
+              f"(+{sorted(FORCED)}, -{sorted(EXTERNAL)}); {n} atom(s)")
         return
 
     if missing:
