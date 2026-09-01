@@ -3,13 +3,15 @@
 # This image has TWO jobs:
 #
 # 1. SERVICE the FULL gentoo-ing set (config/packages.txt): mirror each atom the
-#    official Gentoo binhost already ships (systemd, ostree, podman, ...) as a
-#    prebuilt binary, and COMPILE the atoms it does not (bootc, kernel,
-#    firmware, skopeo, flatpak, iwd, jq, installkernel, gum, just) once per
-#    published image. --buildpkg emits a binpkg for every merged package, so the
-#    overlay is self-contained and consumers never compile or hit the official
-#    host at runtime. Compiles route through ccache (/var/cache/ccache, primed
-#    from the workflow cache) so GNOME-scale rebuilds reuse past work.
+#    official Gentoo binhost already carries with identical USE (base system
+#    packages), and COMPILE the atoms whose USE diverge or that it lacks (the
+#    desktop closure incl. full GNOME, bootc, kernel, firmware, skopeo, flatpak,
+#    iwd, jq, installkernel, gum, just) once per published image, all resolved
+#    with --binpkg-respect-use=y to match the consumer. --buildpkg emits a binpkg
+#    for every merged package, so the overlay is self-contained and consumers
+#    never compile or hit the official host at runtime. Compiles route through
+#    ccache (/var/cache/ccache, primed from the workflow cache) so the GNOME-scale
+#    rebuilds reuse past work.
 # 2. PUBLISH a data-only image containing the binhost tree plus the ebuild
 #    overlay that gives consumers atom visibility for the packages
 #    ::gentoo does not carry at all (bootc, gum, just), AND (via the publish
