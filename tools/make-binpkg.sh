@@ -107,6 +107,17 @@ cat > /etc/portage/package.use/installkernel <<EOF
 sys-kernel/installkernel dracut
 EOF
 
+# Desktop-closure USE overrides. The GNOME stack pulls transitive deps whose
+# official binpkg was built WITHOUT the USE flags this (desktop/gnome) profile
+# requires, and --binpkg-respect-use=y refuses those binaries. Forcing the flag
+# here makes the maker compile the atom from source to match (--buildpkg then
+# emits a binpkg with the required USE). E.g. GDM -> net-fs/samba ->
+# >=net-libs/ngtcp2-1.12.0[gnutls], but the official ngtcp2 binpkg ships
+# without gnutls.
+cat > /etc/portage/package.use/desktop <<EOF
+net-libs/ngtcp2 gnutls
+EOF
+
 # 5. Official binhost supplies dependency binaries for the gap builds.
 mkdir -p /etc/portage/binrepos.conf
 cat > /etc/portage/binrepos.conf/gentoo.conf <<EOF

@@ -36,6 +36,18 @@ prebuilds) and publishes the binpkg.
    `tools/make-binpkg.sh`'s `package.use` drop-in **and** on the consumer side,
    so `--binpkg-respect-use=y` matches.
 
+## Desktop-closure USE conflicts (`package.use/desktop`)
+
+The GNOME stack drags in transitive deps whose *official binpkg* is built
+without the USE flags the `desktop/gnome` profile demands, and
+`--binpkg-respect-use=y` refuses those binaries ("there are no ebuilds built
+with USE flags to satisfy"). E.g. GDM → `net-fs/samba` →
+`>=net-libs/ngtcp2-1.12.0[gnutls]`, but the official `ngtcp2` binpkg ships
+`-gnutls`. Fix by forcing the flag in `tools/make-binpkg.sh`'s `package.use/desktop`
+drop-in so the maker compiles that atom from source to match (`--buildpkg` then
+emits a binpkg with the required USE). Expect a few of these when bringing up a
+full desktop closure; each is a one-line `cat/pkg USE` entry.
+
 ## Case 3 — `::gentoo` has no ebuild at all
 
 bootc, gum, and just work this way. Add a live ebuild under
