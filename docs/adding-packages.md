@@ -36,17 +36,19 @@ prebuilds) and publishes the binpkg.
    `tools/make-binpkg.sh`'s `package.use` drop-in **and** on the consumer side,
    so `--binpkg-respect-use=y` matches.
 
-## Desktop-closure USE conflicts (`package.use/desktop`)
+## `--binpkg-respect-use=y` USE-gap conflicts (`package.use/respect-use`)
 
-The GNOME stack drags in transitive deps whose *official binpkg* is built
-without the USE flags the `desktop/gnome` profile demands, and
-`--binpkg-respect-use=y` refuses those binaries ("there are no ebuilds built
-with USE flags to satisfy"). E.g. GDM → `net-fs/samba` →
-`>=net-libs/ngtcp2-1.12.0[gnutls]`, but the official `ngtcp2` binpkg ships
-`-gnutls`. Fix by forcing the flag in `tools/make-binpkg.sh`'s `package.use/desktop`
+The strict `=y` resolution (same as the sealed consumer) refuses any official
+binpkg whose USE flags diverge from this `desktop/gnome` profile — portage then
+says "there are no ebuilds built with USE flags to satisfy" and can't always fall
+back to a source build on its own. Examples:
+GDM → `net-fs/samba` → `>=net-libs/ngtcp2-1.12.0[gnutls]` (official ngtcp2
+binpkg ships `-gnutls`), and podman → `app-containers/containers-common` →
+`net-firewall/iptables[nftables]` (official iptables binpkg ships `-nftables`).
+Fix by forcing the flag in `tools/make-binpkg.sh`'s `package.use/respect-use`
 drop-in so the maker compiles that atom from source to match (`--buildpkg` then
-emits a binpkg with the required USE). Expect a few of these when bringing up a
-full desktop closure; each is a one-line `cat/pkg USE` entry.
+emits a binpkg with the required USE). Expect one of these per divergent atom
+when bringing up a strict-`=y` set; each is a one-line `cat/pkg USE` entry.
 
 ## Case 3 — `::gentoo` has no ebuild at all
 

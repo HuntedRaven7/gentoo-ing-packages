@@ -107,15 +107,18 @@ cat > /etc/portage/package.use/installkernel <<EOF
 sys-kernel/installkernel dracut
 EOF
 
-# Desktop-closure USE overrides. The GNOME stack pulls transitive deps whose
-# official binpkg was built WITHOUT the USE flags this (desktop/gnome) profile
-# requires, and --binpkg-respect-use=y refuses those binaries. Forcing the flag
-# here makes the maker compile the atom from source to match (--buildpkg then
-# emits a binpkg with the required USE). E.g. GDM -> net-fs/samba ->
-# >=net-libs/ngtcp2-1.12.0[gnutls], but the official ngtcp2 binpkg ships
-# without gnutls.
-cat > /etc/portage/package.use/desktop <<EOF
+# --binpkg-respect-use=y USE-gap overrides. The strict =y resolution (same as
+# the sealed consumer) refuses any official binpkg whose USE flags diverge from
+# this (desktop/gnome) profile, and portage can't always fall back to a source
+# build on its own. Forcing the flag here makes the maker compile the atom from
+# source to match (--buildpkg then emits a binpkg with the required USE).
+#   - GDM -> net-fs/samba -> >=net-libs/ngtcp2-1.12.0[gnutls], but the official
+#     ngtcp2 binpkg ships -gnutls.
+#   - podman -> app-containers/containers-common -> net-firewall/iptables[nftables],
+#     but the official iptables binpkg ships -nftables.
+cat > /etc/portage/package.use/respect-use <<EOF
 net-libs/ngtcp2 gnutls
+net-firewall/iptables nftables
 EOF
 
 # 5. Official binhost supplies dependency binaries for the gap builds.
