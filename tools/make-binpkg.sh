@@ -172,15 +172,33 @@ if [ "${#BUILD_SET[@]}" -gt 0 ]; then
     emerge --update --deep --newuse "${BUILD_SET[@]}"
 fi
 
-# 10. Ensure every BUILD_SET atom has a binpkg in the overlay. --buildpkg only
-#     emits for source builds; packages installed as binaries from the official
-#     host (mirrors) never produce a binpkg in PKGDIR. quickpkg packages them
-#     from the installed VDB so the consumer's --usepkgonly can find them.
-for atom in "${BUILD_SET[@]}"; do
-    if ! grep -q "^${atom}-" "${BINHOST}/.manifest" 2>/dev/null; then
-        PKGDIR="${BINHOST}" quickpkg --include-config=y "${atom}" 2>/dev/null || true
+# 10. Ensure EVERY installed package has a binpkg in the overlay -- not just the
+#     declared atoms (config/packages.txt) but the full dependency closure.
+#     --buildpkg only emits for source builds; packages installed as binaries
+#     from the official host (mirrors) never produce a binpkg in PKGDIR. quickpkg
+#     repacks every installed CPV still missing from the overlay from the VDB, so
+#     the sealed consumer's --usepkgonly can satisfy the ENTIRE closure locally
+#     (iptables/nftables/ngtcp2/containers-common included) and the overlay stays
+#     genuinely self-contained.
+has_binpkg() {
+    find "${BINHOST}" -type f \
+        \( -name "${1}-*.gpkg.tar" -o -name "${1}-*.tbz2" \) | grep -q .
+}
+MISSING=()
+for cpv in /var/db/pkg/*/*/; do
+    cpv=${cpv%/}
+    p=${cpv##*/}
+    if ! has_binpkg "${p}"; then
+        PKGDIR="${BINHOST}" quickpkg --include-config=y "=${cpv#/var/db/pkg/}" 2>/dev/null || true
+        if ! has_binpkg "${p}"; then
+            MISSING+=("${cpv}")
+        fi
     fi
 done
+if [ "${#MISSING[@]}" -gt 0 ]; then
+    printf 'FATAL: no binpkg for installed package: %s\n' "${MISSING[@]}" >&2
+    exit 1
+fi
 
 # 11. Regenerate the Packages index. Strict: a corrupt tbz2 fails the image.
 emaint binhost --fix
