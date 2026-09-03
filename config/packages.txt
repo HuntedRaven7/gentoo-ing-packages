@@ -58,3 +58,8 @@ sys-apps/flatpak
 gnome-base/gnome
 gnome-base/gdm
 net-misc/networkmanager
+app-crypt/tpm2-tss
+net-vpn/tailscale
+gui-apps/wl-clipboard
+media-video/ffmpeg
+media-plugins/gst-plugins-meta
