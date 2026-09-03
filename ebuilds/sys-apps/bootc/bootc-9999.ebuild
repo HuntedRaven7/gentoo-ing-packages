@@ -23,6 +23,7 @@ BDEPEND="
 DEPEND="
     >=dev-util/ostree-2024.6
     dev-libs/glib
+    sys-libs/libselinux
 "
 RDEPEND="
     dev-util/ostree
