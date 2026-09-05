@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+  <maintainer type="person">
+    <email>maintainer@example.com</email>
+  </maintainer>
+  <upstream>
+    <bugs-to>https://github.com/BurntSushi/ripgrep/issues</bugs-to>
+    <remote-id type="github">BurntSushi/ripgrep</remote-id>
+  </upstream>
+</pkgmetadata>
