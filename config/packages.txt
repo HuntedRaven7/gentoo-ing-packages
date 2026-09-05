@@ -55,7 +55,6 @@ app-shells/gum
 dev-util/just
 app-misc/jq
 sys-apps/flatpak
-gnome-base/gnome
 gnome-base/gdm
 net-misc/networkmanager
 app-crypt/tpm2-tss
