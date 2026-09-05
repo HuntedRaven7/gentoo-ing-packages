@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+  <maintainer type="person">
+    <email>RobinGroves2007@proton.me</email>
+    <name>Robin Groves</name>
+  </maintainer>
+  <upstream>
+    <bugs-to>https://github.com/NetworkManager/NetworkManager/issues</bugs-to>
+    <remote-id type="github">NetworkManager/NetworkManager</remote-id>
+  </upstream>
+</pkgmetadata>
