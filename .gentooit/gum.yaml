@@ -1,0 +1,19 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: charmbracelet/gum
+  package_name: gum
+  tag_template: "v{version}"
+package:
+  description: A tool for glamorous shell scripts
+  homepage: https://github.com/charmbracelet/gum
+  license: MIT
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: app-shells
+    package-dir: ebuilds
+open_pull_request: false

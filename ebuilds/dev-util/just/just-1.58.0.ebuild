@@ -1,20 +1,26 @@
-# Copyright 2026 The gentoo-ing developers
+# Copyright 1999-2026 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 EAPI=8
 
-inherit git-r3
+inherit cargo
 
 DESCRIPTION="Handy way to save and run project-specific commands"
 HOMEPAGE="https://github.com/casey/just"
-EGIT_REPO_URI="https://github.com/casey/just.git"
-EGIT_CLONE_TYPE="shallow"
+SRC_URI="https://github.com/casey/just/archive/refs/tags/${PV}.tar.gz"
 
 LICENSE="CC0-1.0"
 SLOT="0"
-KEYWORDS="amd64"
+KEYWORDS="~amd64"
 
-BDEPEND="dev-lang/rust-bin"
+DEPEND="dev-lang/rust:="
+
+inherit git-r3
+
+EGIT_REPO_URI="https://github.com/casey/just.git"
+EGIT_CLONE_TYPE="shallow"
+
+
 
 src_compile() {
     cargo build --release --locked --bin just

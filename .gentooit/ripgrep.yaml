@@ -1,0 +1,19 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: BurntSushi/ripgrep
+  package_name: ripgrep
+  tag_template: "v{version}"
+package:
+  description: Recursively search directories for a regex pattern
+  homepage: https://github.com/BurntSushi/ripgrep
+  license: Unlicense
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: app-misc
+    package-dir: ebuilds
+open_pull_request: false

@@ -1,0 +1,20 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: bootc-dev/bootc
+  package_name: bootc
+  tag_template: "v{version}"
+  archive-template: "https://github.com/bootc-dev/bootc/releases/download/v{version}/bootc-{version}.tar.zstd"
+package:
+  description: Boot and upgrade a Linux system via container images
+  homepage: https://github.com/containers/bootc
+  license: Apache-2.0
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: sys-apps
+    package-dir: ebuilds
+open_pull_request: false
