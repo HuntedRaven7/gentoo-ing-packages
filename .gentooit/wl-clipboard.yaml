@@ -1,19 +1,20 @@
 spec_version: "1.0"
 upstream:
   vcs: github
-  upstream: casey/just
-  package-name: just
-  tag-template: "{version}"
+  upstream: bugaevc/wl-clipboard
+  package-name: wl-clipboard
+  tag-template: "v{version}"
+  version: "2.3.0"
 package:
-  description: Handy way to save and run project-specific commands
-  homepage: https://github.com/casey/just
-  license: CC0-1.0
+  description: "Copy and paste utilities for Wayland"
+  homepage: https://github.com/bugaevc/wl-clipboard
+  license: MIT
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com
   maintainer_name: gentoo-ing
 downstream:
   - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
     branch: main
-    category: dev-util
+    category: gui-apps
     package-dir: ebuilds
 open_pull_request: false

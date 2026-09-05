@@ -1,0 +1,21 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: kdave/btrfs-progs
+  package-name: btrfs-progs
+  tag-template: "v{version}"
+  version: "6.12"
+  archive-template: "https://www.kernel.org/pub/linux/kernel/people/kdave/btrfs-progs/btrfs-progs-v{version}.tar.xz"
+package:
+  description: "Checks and defragmentation tool for Btrfs filesystem"
+  homepage: https://btrfs.readthedocs.io/
+  license: GPL-2
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: sys-fs
+    package-dir: ebuilds
+open_pull_request: false

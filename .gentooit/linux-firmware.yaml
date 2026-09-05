@@ -1,0 +1,20 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: kernel.org/linux-firmware
+  package-name: linux-firmware
+  tag-template: "{version}"
+  archive-template: "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/snapshot/linux-firmware-{version}.tar.xz"
+package:
+  description: "Firmware files for Linux kernel drivers"
+  homepage: https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git
+  license: GPL-2 GPL-3+
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: sys-kernel
+    package-dir: ebuilds
+open_pull_request: false

@@ -1,0 +1,21 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: gentoo/installkernel
+  package-name: installkernel
+  tag-template: "{version}"
+  version: "1.0"
+  archive-template: "https://distfiles.gentoo.org/distfiles/installkernel-{version}.tar.xz"
+package:
+  description: "Install a kernel and its associated modules and initramfs"
+  homepage: https://wiki.gentoo.org/wiki/Kernel
+  license: GPL-2
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: sys-kernel
+    package-dir: ebuilds
+open_pull_request: false

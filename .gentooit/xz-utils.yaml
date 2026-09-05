@@ -1,19 +1,20 @@
 spec_version: "1.0"
 upstream:
   vcs: github
-  upstream: charmbracelet/gum
-  package-name: gum
+  upstream: tukaani-project/xz
+  package-name: xz-utils
   tag-template: "v{version}"
+  archive-template: "https://github.com/tukaani-project/xz/archive/refs/tags/v{version}.tar.gz"
 package:
-  description: A tool for glamorous shell scripts
-  homepage: https://github.com/charmbracelet/gum
-  license: MIT
+  description: "XZ-format compression utilities"
+  homepage: https://tukaani.org/xz/
+  license: GPL-2+
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com
   maintainer_name: gentoo-ing
 downstream:
   - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
     branch: main
-    category: app-shells
+    category: app-arch
     package-dir: ebuilds
 open_pull_request: false

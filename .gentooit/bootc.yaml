@@ -2,8 +2,8 @@ spec_version: "1.0"
 upstream:
   vcs: github
   upstream: bootc-dev/bootc
-  package_name: bootc
-  tag_template: "v{version}"
+  package-name: bootc
+  tag-template: "v{version}"
   archive-template: "https://github.com/bootc-dev/bootc/releases/download/v{version}/bootc-{version}.tar.zstd"
 package:
   description: Boot and upgrade a Linux system via container images

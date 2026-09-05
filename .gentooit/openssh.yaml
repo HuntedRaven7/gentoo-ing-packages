@@ -1,0 +1,21 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: openssh/openssh-portable
+  package-name: openssh
+  tag-template: "{version}"
+  version: "9.9p2"
+  archive-template: "https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-9.9p2.tar.gz"
+package:
+  description: "OpenSSH is a FREE version of the SSH connectivity tools"
+  homepage: https://www.openssh.com/
+  license: BSD
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: net-misc
+    package-dir: ebuilds
+open_pull_request: false

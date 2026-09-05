@@ -1,19 +1,19 @@
 spec_version: "1.0"
 upstream:
   vcs: github
-  upstream: casey/just
-  package-name: just
-  tag-template: "{version}"
+  upstream: tailscale/tailscale
+  package-name: tailscale
+  tag-template: "v{version}"
 package:
-  description: Handy way to save and run project-specific commands
-  homepage: https://github.com/casey/just
-  license: CC0-1.0
+  description: ""
+  homepage: https://github.com/tailscale/tailscale
+  license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com
   maintainer_name: gentoo-ing
 downstream:
   - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
     branch: main
-    category: dev-util
+    category: net-vpn
     package-dir: ebuilds
 open_pull_request: false

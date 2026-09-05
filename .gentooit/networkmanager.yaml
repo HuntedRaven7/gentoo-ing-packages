@@ -1,0 +1,21 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: NetworkManager/NetworkManager
+  package-name: networkmanager
+  tag-template: "{version}"
+  version: "1.50.0"
+  archive-template: "https://download.gnome.org/sources/NetworkManager/1.50/NetworkManager-1.50.0.tar.xz"
+package:
+  description: "Network connection manager and user applications"
+  homepage: https://wiki.gnome.org/Projects/NetworkManager
+  license: GPL-2+
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: net-misc
+    package-dir: ebuilds
+open_pull_request: false

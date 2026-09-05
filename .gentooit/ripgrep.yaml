@@ -2,8 +2,8 @@ spec_version: "1.0"
 upstream:
   vcs: github
   upstream: BurntSushi/ripgrep
-  package_name: ripgrep
-  tag_template: "v{version}"
+  package-name: ripgrep
+  tag-template: "v{version}"
 package:
   description: Recursively search directories for a regex pattern
   homepage: https://github.com/BurntSushi/ripgrep

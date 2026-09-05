@@ -1,0 +1,21 @@
+spec_version: "1.0"
+upstream:
+  vcs: github
+  upstream: FFmpeg/FFmpeg
+  package-name: ffmpeg
+  tag-template: "n{version}"
+  version: "7.1"
+  archive-template: "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz"
+package:
+  description: "Tools for transcoding, streaming, and playing multimedia content"
+  homepage: https://ffmpeg.org/
+  license: GPL-2+
+  keywords: "~amd64"
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: media-video
+    package-dir: ebuilds
+open_pull_request: false
