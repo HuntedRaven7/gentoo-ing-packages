@@ -148,6 +148,8 @@ getuto >/dev/null 2>&1 || true
 #    invocation name when exec'ing the real compiler, so GCC keeps its g++/gcc
 #    language semantics in configure probes (this is exactly what a bootstrap
 #    whose C++ checks all failed was missing).
+# 7b. Distfiles cache: if a prior run cached distfiles, symlink them into
+#     PORTAGE_DISTCACHE so unchanged source tarballs don't re-download.
 emerge --oneshot dev-util/ccache
 mkdir -p /var/cache/ccache
 mkdir -p /usr/lib/ccache/bin
@@ -155,6 +157,10 @@ ln -sf /usr/bin/ccache /usr/lib/ccache/bin/ccache
 for target in x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
     ln -sf /usr/bin/ccache "/usr/lib/ccache/bin/${target}"
 done
+if [ -d /var/cache/distfiles ]; then
+    mkdir -p /var/cache/distfiles
+    ln -sf /var/cache/distfiles /var/cache/ccache/distfiles 2>/dev/null || true
+fi
 
 # 8. Stage any plopped-in .tbz2 first (faster prebuilt starting points).
 mkdir -p "${BINHOST}"

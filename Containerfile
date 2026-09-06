@@ -55,6 +55,12 @@ COPY packages /app/packages
 # context primes nothing and simply starts cold.
 COPY --from=ccache-prime / /var/cache/ccache/
 
+# Prime distfiles from the previous run's cache, if any. The publish workflow
+# supplies this additional build context (distfiles-prime) round-tripped through
+# actions/cache; local `just build` does the same from .cache/distfiles. An empty
+# context primes nothing and simply starts cold.
+COPY --from=distfiles-prime / /var/cache/distfiles/
+
 # Bootstrap portage, build the full overlay set (mirrored + compiled gaps) as
 # binpkgs, regenerate the index (strict: a corrupt tbz2 breaks the image so it
 # never reaches consumers). Fail-closed: a run that cannot serve the full set

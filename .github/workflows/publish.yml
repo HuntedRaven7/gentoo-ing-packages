@@ -77,13 +77,24 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: /tmp/ccache-cache
-          key: ccache-${{ hashFiles('config/packages.txt', 'ebuilds/**') }}
+          key: ccache-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
           restore-keys: |
             ccache-
           save-always: 'true'
 
-      - name: Ensure ccache prime dir exists (first run is empty = cold start)
-        run: mkdir -p /tmp/ccache-cache
+      - name: Restore distfiles from the cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/distfiles-cache
+          key: distfiles-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
+          restore-keys: |
+            distfiles-
+          save-always: 'true'
+
+      - name: Ensure cache prime dirs exist (first run is empty = cold start)
+        run: |
+          mkdir -p /tmp/ccache-cache
+          mkdir -p /tmp/distfiles-cache
 
       - name: Load current published manifest (if any)
         id: baseline
@@ -107,6 +118,7 @@ jobs:
           tags: localhost/${{ env.IMAGE_NAME }}:local
           build-contexts: |
             ccache-prime=/tmp/ccache-cache
+            distfiles-prime=/tmp/distfiles-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
@@ -122,6 +134,7 @@ jobs:
           tags: localhost/${{ env.IMAGE_NAME }}:maker
           build-contexts: |
             ccache-prime=/tmp/ccache-cache
+            distfiles-prime=/tmp/distfiles-cache
           build-args: |
             SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 

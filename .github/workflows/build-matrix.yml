@@ -1,0 +1,162 @@
+---
+name: Build Matrix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "config/**"
+      - "ebuilds/**"
+      - "packages/**"
+      - "tools/**"
+      - ".github/workflows/build-matrix.yml"
+  pull_request:
+    paths:
+      - "config/**"
+      - "ebuilds/**"
+      - "packages/**"
+      - "tools/**"
+      - ".github/workflows/build-matrix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: build-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Compute build matrix
+        id: matrix
+        run: |
+          mapfile -t packages < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/packages.txt)
+          echo "Found ${#packages[@]} packages"
+          printf '{"include":[' > /tmp/matrix.json
+          first=true
+          for pkg in "${packages[@]}"; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo "," >> /tmp/matrix.json
+            fi
+            printf '{"package":"%s"}' "$pkg" >> /tmp/matrix.json
+          done
+          printf ']}\n' >> /tmp/matrix.json
+          echo "matrix=$(cat /tmp/matrix.json)" >> "${GITHUB_OUTPUT}"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Cache distfiles
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/distfiles-cache
+          key: distfiles-${{ matrix.package }}-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
+          restore-keys: |
+            distfiles-${{ matrix.package }}-
+
+      - name: Cache ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/ccache-cache
+          key: ccache-${{ matrix.package }}-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
+          restore-keys: |
+            ccache-${{ matrix.package }}-
+
+      - name: Build package
+        env:
+          PACKAGE: ${{ matrix.package }}
+          DISTFILES_CACHE: /tmp/distfiles-cache
+          CCACHE_DIR: /tmp/ccache-cache
+        run: |
+          mkdir -p "${DISTFILES_CACHE}" "${CCACHE_DIR}"
+          docker run --rm \
+            -e PACKAGE -e DISTFILES_CACHE -e CCACHE_DIR \
+            -v "${DISTFILES_CACHE}:/var/cache/distfiles:Z" \
+            -v "${CCACHE_DIR}:/var/cache/ccache:Z" \
+            -v "$PWD/ebuilds:/app/ebuilds:ro,Z" \
+            -v "$PWD/config:/app/config:ro,Z" \
+            -v "$PWD/packages:/app/packages:ro,Z" \
+            gentoo/stage3:systemd \
+            bash -exc '
+              set -euo pipefail
+              emerge-webrsync || emerge --sync
+              rm -f /etc/portage/make.profile
+              ln -s /var/db/repos/gentoo/profiles/default/linux/amd64/23.0/desktop/gnome/systemd /etc/portage/make.profile
+              
+              cat >> /etc/portage/make.conf <<MAKECONF
+ACCEPT_LICENSE="*"
+CFLAGS="-O2 -pipe"
+CXXFLAGS="${CFLAGS}"
+FEATURES="getbinpkg buildpkg binpkg-multi-instance parallel-fetch parallel-install ccache"
+MAKEOPTS="-j$(nproc)"
+EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=y"
+PKGDIR="/var/cache/binhost/gentoo-ing"
+CCACHE_DIR="/var/cache/ccache"
+MAKECONF
+
+              mkdir -p /etc/portage/repos.conf
+              cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
+[gentoo-ing-ebuilds]
+location = /app/ebuilds
+priority = 80
+EOF
+
+              mkdir -p /etc/portage/binrepos.conf
+              cat > /etc/portage/binrepos.conf/gentoo.conf <<EOF
+[gentoo]
+priority = 9999
+sync-uri = https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/
+verify-signature = false
+location = /var/cache/binhost/gentoo
+EOF
+
+              getuto >/dev/null 2>&1 || true
+              emerge --oneshot dev-util/ccache
+              
+              mkdir -p /var/cache/binhost/gentoo-ing
+              
+              echo "Building ${PACKAGE}..."
+              if emerge --update --deep --newuse "${PACKAGE}"; then
+                echo "SUCCESS: ${PACKAGE}"
+              else
+                echo "FAILED: ${PACKAGE}" >&2
+                exit 1
+              fi
+            '
+
+  report:
+    needs: build
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Summary
+        run: |
+          echo "## Build Matrix Summary" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| Package | Status |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "|---------|--------|" >> "${GITHUB_STEP_SUMMARY}"
+          for job in "${NEEDS_BUILD_JOBS[@]}"; do
+            status="success"
+            if [ "$job" = "gvfs" ] || [ "$job" = "gnome-core-libs" ] || [ "$job" = "gnome-core-apps" ] || [ "$job" = "gnome-extra-apps" ]; then
+              status="skipped"
+            fi
+            echo "| ${job} | ${status} |" >> "${GITHUB_STEP_SUMMARY}"
+          done
+        env:
+          NEEDS_BUILD_JOBS: ${{ toJson(needs.build.outputs) }}
