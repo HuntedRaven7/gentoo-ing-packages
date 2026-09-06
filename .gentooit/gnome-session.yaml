@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "49.3"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gnome-session
+  package-name: gnome-session
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "49.3"
+  archive-template: "https://download.gnome.org/sources/gnome-session/49/gnome-session-49.3.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gnome-session
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

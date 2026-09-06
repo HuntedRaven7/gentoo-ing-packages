@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "48.0"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gnome-keyring
+  package-name: gnome-keyring
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "48.0"
+  archive-template: "https://download.gnome.org/sources/gnome-keyring/48/gnome-keyring-48.0.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gnome-keyring
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

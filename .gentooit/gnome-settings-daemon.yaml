@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "49.1"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gnome-settings-daemon
+  package-name: gnome-settings-daemon
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "49.1"
+  archive-template: "https://download.gnome.org/sources/gnome-settings-daemon/49/gnome-settings-daemon-49.1.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gnome-settings-daemon
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

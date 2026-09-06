@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "49.9"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gnome-control-center
+  package-name: gnome-control-center
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "49.9"
+  archive-template: "https://download.gnome.org/sources/gnome-control-center/49/gnome-control-center-49.9.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gnome-control-center
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

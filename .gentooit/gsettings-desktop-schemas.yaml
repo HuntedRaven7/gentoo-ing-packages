@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "49.1"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gsettings-desktop-schemas
+  package-name: gsettings-desktop-schemas
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "49.1"
+  archive-template: "https://download.gnome.org/sources/gsettings-desktop-schemas/49/gsettings-desktop-schemas-49.1.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gsettings-desktop-schemas
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "3.38.1"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/gnome-menus
+  package-name: gnome-menus
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "3.38.1"
+  archive-template: "https://download.gnome.org/sources/gnome-menus/3.38/gnome-menus-3.38.1.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/gnome-menus
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

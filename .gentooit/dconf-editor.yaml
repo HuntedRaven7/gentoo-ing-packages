@@ -1,14 +1,14 @@
-spec_version: "49.4"
+spec_version: "49.0"
 upstream:
   vcs: github
-  upstream: GNOME/gdm
-  package-name: gdm
+  upstream: GNOME/dconf-editor
+  package-name: dconf-editor
   tag-template: "{version}"
-  version: "49.4"
-  archive-template: "https://download.gnome.org/sources/gdm/49/gdm-49.4.tar.xz"
+  version: "49.0"
+  archive-template: "https://download.gnome.org/sources/dconf-editor/49/dconf-editor-49.0.tar.xz"
 package:
   description: ""
-  homepage: https://wiki.gnome.org/Projects/gdm
+  homepage: https://wiki.gnome.org/Projects/dconf-editor
   license: ""
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com

@@ -62,3 +62,21 @@ net-vpn/tailscale
 gui-apps/wl-clipboard
 media-video/ffmpeg
 media-plugins/gst-plugins-meta
+
+# GNOME desktop stack (systemd-only)
+gnome-base/gdm
+gnome-base/gnome-shell
+gnome-base/gnome-session
+gnome-base/gnome-settings-daemon
+gnome-base/gnome-control-center
+gnome-base/nautilus
+gnome-base/gvfs
+gnome-base/gnome-keyring
+gnome-base/dconf
+gnome-base/dconf-editor
+gnome-base/gsettings-desktop-schemas
+gnome-base/gnome-desktop
+gnome-base/gnome-menus
+gnome-base/librsvg
+gnome-base/libgnomekbd
+gnome-base/libgtop
