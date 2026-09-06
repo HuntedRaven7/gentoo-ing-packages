@@ -26,10 +26,11 @@ job is keeping the list in parity with the consumer.
 ## Case 2 — `::gentoo` has an ebuild but the official binhost does not ship it
 
 Kernel, firmware, skopeo, flatpak, iwd, jq, installkernel … the factory
-**compiles** these in the `maker` stage (dependency binaries come as official
-prebuilds) and publishes the binpkg.
+**compiles** these in the matrix (each atom on the shared builder image;
+dependency binaries come as official prebuilds) and publishes the binpkg.
 
-1. Add the atom to `config/packages.txt`.
+1. Add the atom to `config/packages.txt` (and a stage in
+   `config/build-stages.txt` if its deps must be ready first).
 2. The next `just build` / CI run compiles it and emits the binpkg.
 3. If the atom has dependency-visible USE overrides (like
    `sys-kernel/installkernel dracut`), declare them in
@@ -71,8 +72,8 @@ scp user@host:/var/cache/binpkgs/sys-kernel/gentoo-kernel-bin-6.14_rc4_p1.tbz2 \
 just seed
 ```
 
-`tools/make-binpkg.sh` stages `packages/` into the overlay before building, so
-staged binaries win and nothing gets recompiled unnecessarily.
+`tools/make-binpkg.sh` (the compose) stages `packages/` into the overlay before
+building, so staged binaries win and nothing gets recompiled unnecessarily.
 
 ## Adjusting toolchains
 
@@ -90,13 +91,14 @@ the list in sync with the `~amd64` keywords above.
 
 ## Update cycle (every 2 days)
 
-A cron in `publish.yml` (`30 3 */2 * *`) rebuilds the binhost with a **fresh
-portage tree** (`SYNC_PORTAGE=1`), so the full set tracks current stable
-automatically. `emerge --buildpkg` only emits binpkg changes for what actually
-moved; `tools/prune-binhost.py` then keeps just the newest version per package
-and drops the never-ship toolchains, and a manifest diff against the published
-image skips the push when nothing changed. You rarely need to bump a package by
-hand — the cycle does it.
+A cron in `build-matrix.yml` (`30 3 */2 * *`) rebuilds the binhost with a
+**fresh portage tree** (`SYNC_PORTAGE=1`), so the full set tracks current
+stable automatically. The matrix skips everything the published `.manifest`
+already carries; `emerge --update --deep` only emits binpkg changes for what
+actually moved; `tools/prune-binhost.py` then keeps just the newest version
+per package and drops the never-ship toolchains, and the manifest diff against
+the published image skips the push when nothing changed. You rarely need to
+bump a package by hand — the cycle does it.
 
 ## After changes
 
@@ -106,11 +108,12 @@ git add config ebuilds packages && git commit -m "feat(binhost): add/update <pkg
 git push
 ```
 
-CI rebuilds (recompiling only atoms that changed) and pushes
-`ghcr.io/HuntedRaven7/gentoo-ing-packages:latest` (plus a `:gitsha` tag). The
-consumer image (`gentoo-ing`) picks it up on its next build — the
-`COPY --from=...@sha256:...` pin is bumped and verified, then the OS image is
-rebuilt and released through the normal `main` → `stable` promotion.
+CI rebuilds (PRs: only the atoms the PR touches; `main`/schedule: the full
+matrix) and pushes `ghcr.io/HuntedRaven7/gentoo-ing-packages:latest` (plus a
+`:<sha>` tag) when the manifest actually changed. The consumer image
+(`gentoo-ing`) picks it up on its next build — the `COPY --from=...@sha256:...`
+pin is bumped and verified, then the OS image is rebuilt and released through
+the normal `main` → `stable` promotion.
 
 **Never publish from a pull request.** PRs build and validate only; `:latest`
-updates arrive exclusively from `main` pushes.
+updates arrive exclusively from `main` pushes (and the scheduled refresh).

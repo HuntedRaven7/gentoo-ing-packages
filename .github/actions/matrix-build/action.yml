@@ -1,0 +1,126 @@
+name: Matrix build a package
+description: >-
+  Build one atom on the shared builder image and emit the resulting binpkg tree
+  as a PKGDIR-shaped result directory. Mirrors the utah-packages model: every
+  edge installs the identical baked environment instead of re-bootstrapping
+  portage, and earlier stages' artifacts can be mounted as a local binrepo that
+  outranks the official host.
+
+  The shared builder image is the bootstrap job's push at `:builder` when that
+  is reachable; if the pull fails (first run on a fork PR), the edge rebuilds it
+  locally from the repository-wide BuildKit gha layer cache — the environment is
+  deterministic, so only the first lazy edge pays emerge-webrsync.
+
+inputs:
+  package:
+    description: Atom to build (cat/pkg), the matrix.package value.
+    required: true
+  prior_dir:
+    description: >-
+      Host directory holding earlier stages' binpkg artifacts (PKGDIR shape).
+      Empty for stage 0.
+    required: false
+    default: ""
+  ccache_dir:
+    description: Host directory that round-trips the shared compile cache.
+    required: true
+  distfiles_dir:
+    description: Host directory that round-trips the shared distfiles cache.
+    required: true
+  result_dir:
+    description: Host directory the edge writes its binpkg tree into.
+    required: true
+  builder_image:
+    description: >-
+      ghcr builder image to pull (e.g. ghcr.io/owner/repo:builder). Empty to
+      force the local BuildKit layer-cache path.
+    required: false
+    default: ""
+  token:
+    description: GitHub token for the pull (GITHUB_TOKEN).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Buildx
+      uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+    - name: Login to GitHub Container Registry
+      if: inputs.builder_image != ''
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+      continue-on-error: true
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ inputs.token }}
+
+    - name: Pull shared builder image
+      id: pull
+      if: inputs.builder_image != ''
+      continue-on-error: true
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker pull "${{ inputs.builder_image }}"
+        docker tag "${{ inputs.builder_image }}" localhost/builder:local
+        docker image ls localhost/builder:local
+
+    # The builder image, rebuilt from the gha layer cache. The first lazy edge
+    # in a fork PR pays emerge-webrsync + configuration (~8 min); every other
+    # parallel edge hits the cached layers (build + load only).
+    - name: Build shared builder image (layer-cached)
+      if: ${{ (inputs.builder_image != '' && steps.pull.outcome == 'failure') || inputs.builder_image == '' }}
+      uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+      with:
+        context: ${{ github.workspace }}
+        file: Containerfile
+        target: builder
+        push: false
+        load: true
+        tags: localhost/builder:local
+        cache-from: type=gha,scope=binhost-builder
+        cache-to: type=gha,mode=max,scope=binhost-builder
+
+    - name: Prepare runtime directories
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "${{ inputs.result_dir }}" \
+                 "${{ inputs.ccache_dir }}" \
+                 "${{ inputs.distfiles_dir }}"
+        if [ -n "${{ inputs.prior_dir }}" ]; then
+          mkdir -p "${{ inputs.prior_dir }}"
+        fi
+
+    - name: Build ${{ inputs.package }}
+      shell: bash
+      env:
+        PACKAGE: ${{ inputs.package }}
+        PRIOR_DIR: ${{ inputs.prior_dir }}
+        RESULT_DIR: /result
+        CCACHE_DIR: ${{ inputs.ccache_dir }}
+        DISTFILES_DIR: ${{ inputs.distfiles_dir }}
+      run: |
+        set -euo pipefail
+        args=(
+          --rm
+          -e PACKAGE
+          -e PRIOR_DIR=/prior
+          -e RESULT_DIR=/result
+        )
+        if [ -n "${PRIOR_DIR}" ]; then
+          args+=(-v "${PRIOR_DIR}:/prior:Z")
+        fi
+        args+=(
+          -v "${CCACHE_DIR}:/var/cache/ccache:Z"
+          -v "${DISTFILES_DIR}:/var/cache/distfiles:Z"
+          -v "${GITHUB_WORKSPACE}/ebuilds:/app/ebuilds:ro,Z"
+          -v "${GITHUB_WORKSPACE}/config:/app/config:ro,Z"
+          -v "${GITHUB_WORKSPACE}/packages:/app/packages:ro,Z"
+          -v "${{ inputs.result_dir }}:/result:Z"
+          localhost/builder:local
+          bash /app/tools/matrix-build.sh
+        )
+        docker run "${args[@]}"

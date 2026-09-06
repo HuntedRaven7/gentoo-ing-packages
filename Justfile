@@ -27,9 +27,11 @@ lint:
 # first build starts with an empty cache, just like a first CI run.
 [group('Image')]
 build $tag="latest":
-    mkdir -p .cache/ccache
+    mkdir -p .cache/ccache .cache/distfiles
     {{ PODMAN }} build --pull=newer \
         --build-context ccache-prime=.cache/ccache \
+        --build-context distfiles-prime=.cache/distfiles \
+        --build-context binpkg-staging=packages \
         -t localhost/{{ IMAGE_NAME }}:{{ tag }} .
 
 # Pull the ccache out of a prior local build's maker stage into .cache/ccache

@@ -1,0 +1,81 @@
+# Dependency-ordered build stages for the Build Matrix workflow (utah-packages
+# model). Each stage is a matrix that builds its atoms in parallel; a stage-N
+# edge resolves an intra-set dependency against the artifacts of stages < N
+# (registered as a local binrepo above the official Gentoo host), so a compiled
+# gap is built once and reused by everything above it instead of being
+# recompiled by every downstream edge.
+#
+# Format: one `STAGE<TAB>atom` pair per line. '#' is a comment. An atom MISSING
+# from this file defaults to stage 0 — the default is safe, only wasteful: an
+# edge that cannot find one of this factory's compiled gaps in /prior simply
+# compiles it itself. When you add an atom to config/packages.txt, give it the
+# earliest stage whose dependencies are satisfied by the available states.
+#
+# Stage 0 — independent atoms whose dependency closure resolves from the
+#           official Gentoo binhost (mirrored) or that compile with no
+#           intra-set prerequisite.
+0	sys-apps/bootc
+0	sys-kernel/gentoo-kernel-bin
+0	sys-kernel/linux-firmware
+0	sys-kernel/installkernel
+0	sys-apps/systemd
+0	sys-kernel/dracut
+0	dev-util/ostree
+0	sys-fs/btrfs-progs
+0	sys-fs/dosfstools
+0	sys-fs/e2fsprogs
+0	sys-fs/xfsprogs
+0	sys-fs/cryptsetup
+0	sys-fs/lvm2
+0	net-misc/openssh
+0	net-misc/curl
+0	net-misc/wget
+0	net-wireless/iwd
+0	app-admin/sudo
+0	net-misc/chrony
+0	app-arch/cpio
+0	app-arch/xz-utils
+0	sys-apps/bubblewrap
+0	sys-apps/dbus
+0	sys-apps/shadow
+0	app-shells/gum
+0	dev-util/just
+0	app-misc/jq
+0	app-crypt/tpm2-tss
+0	net-vpn/tailscale
+0	gui-apps/wl-clipboard
+0	media-video/ffmpeg
+0	media-plugins/gst-plugins-meta
+0	app-containers/skopeo
+0	app-containers/podman
+#
+# Stage 1 — GNOME plumbing/libraries the components below inherit. glib, dconf
+#           and gsettings schemas underpin everything with a settings DB; gvfs
+#           and gnome-desktop are needed by the shell and file managers; librsvg
+#           (rust) is a heavy base for icon themes; flatpak and NetworkManager
+#           may compile (official bins can diverge USE on this profile).
+1	dev-libs/glib
+1	gnome-base/gsettings-desktop-schemas
+1	gnome-base/dconf
+1	gnome-base/dconf-editor
+1	gnome-base/gnome-desktop
+1	gnome-base/librsvg
+1	gnome-base/gnome-menus
+1	gnome-base/libgnomekbd
+1	gnome-base/libgtop
+1	gnome-base/gnome-keyring
+1	gnome-base/gvfs
+1	sys-apps/flatpak
+1	net-misc/networkmanager
+#
+# Stage 2 — the desktop components (shell and the session/settings daemons) and
+#           Nautilus, which inherit the stage-1 GNOME libraries.
+2	gnome-base/gnome-shell
+2	gnome-base/gnome-session
+2	gnome-base/gnome-settings-daemon
+2	gnome-base/nautilus
+#
+# Stage 3 — the heaviest consumers (GDM pulls gnome-shell; the control center
+#           sits on top of the whole stack).
+3	gnome-base/gdm
+3	gnome-base/gnome-control-center

@@ -1,0 +1,12 @@
+# Keep the build context lean. The heavy compiled binpkgs never enter the
+# workspace: they ride the `binpkg-staging` build context in CI, and the
+# committed packages/ fast-path files must NOT be excluded (local `just build`
+# stages those deliberately).
+.git/
+.cache/
+work/
+_output/
+__pycache__/
+*.pyc
+packages/Packages
+packages/Packages.gz

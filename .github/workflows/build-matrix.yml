@@ -1,162 +1,770 @@
 ---
-name: Build Matrix
+name: Build Matrix (staged)
+
+# The utah-packages factory model, translated to Portage. Every atom in
+# config/packages.txt is built ONCE by a parallel matrix edge on the shared,
+# layer-cached builder image; edges run in dependency-ordered stages so a
+# compiled gap (GNOME stack, bootc, kernel bits...) is built once and its binpkg
+# is reused by everything downstream via the prior-stage artifact repo.
+# A final compose (maker) job turns the collected binpkgs into the published,
+# fully self-contained binhost image the sealed consumer relies on.
+#
+#   prepare   -> compute the per-stage matrices (skip already-published atoms)
+#   bootstrap -> bake + push the shared builder image (:builder); fork PRs and
+#                cache-misses rebuild it locally from the BuildKit gha layer cache
+#   stage0..N -> the matrix: one edge per atom, N ordered in dependency order
+#   publish   -> compose the binhost image from the matrix artifacts + mirror the
+#                remaining official binaries, then publish to GHCR (+ Pages)
+#   security-scan / publish-pages -> reports, never gates
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
+      - "Containerfile"
+      - "Justfile"
       - "config/**"
       - "ebuilds/**"
       - "packages/**"
       - "tools/**"
-      - ".github/workflows/build-matrix.yml"
+      - ".github/**"
   pull_request:
     paths:
+      - "Containerfile"
+      - "Justfile"
       - "config/**"
       - "ebuilds/**"
       - "packages/**"
       - "tools/**"
-      - ".github/workflows/build-matrix.yml"
+      - ".github/**"
+  schedule:
+    # Update cycle (every 2 days): a fresh portage tree (SYNC_PORTAGE=1) lets
+    # -uDN move the full overlay set to current stable versions, on both the
+    # builder image and the compose maker. The manifest-diff step then skips the
+    # push entirely when nothing moved, so the registry only advances when a
+    # package actually changes.
+    - cron: "30 3 */2 * *"
   workflow_dispatch:
+    inputs:
+      full:
+        description: Rebuild every package, ignoring what is already published
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
-  packages: read
+  packages: write
+  pages: write
+  id-token: write
+  attestations: write
 
+env:
+  IMAGE_NAME: "${{ github.event.repository.name }}"
+  IMAGE_VENDOR: "${{ github.repository_owner }}"
+
+# Runs serialize: a push while a build is running queues rather than cancelling,
+# so the atomic :latest publish is never truncated mid-push.
 concurrency:
-  group: build-matrix-${{ github.ref }}
-  cancel-in-progress: true
+  group: binhost-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  # Bake + push the shared builder image (portage tree, profile, make.conf,
+  # official binhost trust, ccache) exactly once per run. Push only where the
+  # token can write (fork PRs get a local layer-cached rebuild inside each edge
+  # instead). Deterministic build: ccache/distfiles are runtime mounts, never
+  # baked, so the gha cache keeps hitting across runs.
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+          sync=0
+          [ "${{ github.event_name }}" = "schedule" ] && sync=1
+          echo "SYNC_PORTAGE=${sync}" >> "${GITHUB_ENV}"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push shared builder image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Containerfile
+          target: builder
+          push: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          tags: |
+            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder-${{ github.sha }}
+            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder
+          cache-from: type=gha,scope=binhost-builder
+          cache-to: type=gha,mode=max,scope=binhost-builder
+          build-args: |
+            SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
+
+  # Compute the per-stage matrices. Skip policy mirrors utah-packages: name
+  # present in the published .manifest => already published, skip (unless
+  # `full`/schedule, which must discover version bumps against a fresh tree).
+  # Pull requests build exactly what they change.
   prepare:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      stage0: ${{ steps.matrix.outputs.stage0 }}
+      stage1: ${{ steps.matrix.outputs.stage1 }}
+      stage2: ${{ steps.matrix.outputs.stage2 }}
+      stage3: ${{ steps.matrix.outputs.stage3 }}
+      build_list: ${{ steps.matrix.outputs.build_list }}
+      package_count: ${{ steps.matrix.outputs.package_count }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Compute build matrix
-        id: matrix
-        run: |
-          mapfile -t packages < <(sed -e '/^#/d' -e '/^[[:space:]]*$/d' config/packages.txt)
-          echo "Found ${#packages[@]} packages"
-          printf '{"include":[' > /tmp/matrix.json
-          first=true
-          for pkg in "${packages[@]}"; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              echo "," >> /tmp/matrix.json
-            fi
-            printf '{"package":"%s"}' "$pkg" >> /tmp/matrix.json
-          done
-          printf ']}\n' >> /tmp/matrix.json
-          echo "matrix=$(cat /tmp/matrix.json)" >> "${GITHUB_OUTPUT}"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
 
-  build:
+      - name: Login to GitHub Container Registry (manifest read)
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.full)
+        continue-on-error: true
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract published manifest (skip baseline)
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.full)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          registry="${IMAGE_VENDOR,,}"
+          image="ghcr.io/${registry}/${IMAGE_NAME}:latest"
+          docker pull "${image}" >/dev/null 2>&1 || true
+          if cid=$(docker create "${image}" /bin/sh 2>/dev/null); then
+            docker cp "${cid}:/var/cache/binhost/gentoo-ing/.manifest" /tmp/baseline.manifest 2>/dev/null || true
+            docker rm "${cid}" >/dev/null
+          fi
+          test -s /tmp/baseline.manifest \
+            && echo "baseline: $(wc -l < /tmp/baseline.manifest) published atom(s)" \
+            || echo "baseline: none (first publish or pull failed)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute stage matrix
+        id: matrix
+        env:
+          EVENT: ${{ github.event_name }}
+          FULL: ${{ inputs.full }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MANIFEST: /tmp/baseline.manifest
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, sys
+          from pathlib import Path
+
+          root = Path(".")
+
+          def parse_list(path: Path) -> list[str]:
+              out, seen = [], set()
+              for line in path.read_text().splitlines():
+                  line = line.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  if line not in seen:
+                      seen.add(line)
+                      out.append(line)
+              return out
+
+          packages = parse_list(root / "config/packages.txt")
+          stage_map = {}
+          for line in (root / "config/build-stages.txt").read_text().splitlines():
+              line = line.strip()
+              if not line or line.startswith("#"):
+                  continue
+              s, atom = line.split(None, 1)
+              stage_map[atom] = int(s)
+
+          manifest = None
+          if Path(os.environ.get("MANIFEST", "")).is_file():
+              manifest = set(
+                  Path(os.environ["MANIFEST"]).read_text().splitlines()
+              )
+
+          def published(atom: str) -> bool:
+              if manifest is None:
+                  return False
+              return any(line.startswith(atom + "-") for line in manifest)
+
+          def changed_atoms(base: str) -> tuple[set[str], bool]:
+              diff = subprocess.check_output(
+                  ["git", "diff", "--name-only", f"{base}...HEAD"], text=True
+              ).splitlines()
+              atoms, touch_all = set(), False
+              for path in diff:
+                  if (
+                      path == "config/packages.txt"
+                      or path == "config/build-stages.txt"
+                      or path == "Containerfile"
+                      or path == "Justfile"
+                      or path.startswith("tools/")
+                      or path.startswith(".github/")
+                  ):
+                      touch_all = True
+                  elif path.startswith("ebuilds/"):
+                      parts = path.split("/")
+                      if len(parts) >= 3:
+                          atoms.add(f"{parts[1]}/{parts[2]}")
+              return atoms, touch_all
+
+          event = os.environ["EVENT"]
+          full = os.environ.get("FULL", "").lower() == "true"
+          base = os.environ.get("BASE_SHA", "")
+
+          if full or event == "schedule":
+              build, why = packages, "full refresh"
+          elif event == "push" or event == "workflow_dispatch":
+              build = [p for p in packages if not published(p)]
+              why = f"skip {len(packages) - len(build)} already published"
+          elif event == "pull_request":
+              atoms, touch_all = changed_atoms(base)
+              if touch_all:
+                  build, why = packages, "infrastructure/config changed"
+              elif atoms:
+                  build = [p for p in packages if p in atoms]
+                  why = f"changed ebuilds: {', '.join(sorted(atoms))}"
+              else:
+                  # Documentation-only change: nothing to build.
+                  build, why = [], "no package change"
+          else:
+              build, why = packages, f"unknown event {event}"
+
+          stage_out = {}
+          for atom in build:
+              stage_out.setdefault(stage_map.get(atom, 0), []).append(atom)
+
+          for stage in range(5):
+              entries = [
+                  {"package": atom, "id": atom.replace("/", "-")}
+                  for atom in stage_out.get(stage, [])
+              ]
+              with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+                  handle.write(f"stage{stage}={json.dumps(entries)}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"build_list={json.dumps(build)}\n")
+              handle.write(f"package_count={len(build)}\n")
+
+          print(f"set: {len(packages)} atom(s); {len(build)} to build ({why})")
+          for stage in sorted(stage_out):
+              print(f"  stage{stage}: {', '.join(stage_out[stage])}")
+          PY
+
+  # ---- The matrix ----
+  #
+  # stage0 needs nothing; stageN downloads the binpkg-s*-* artifacts of all
+  # earlier stages and registers them as a local binrepo (priority 10000, above
+  # the official host's 9999), so an intra-set compiled gap is built once and
+  # reused by every downstream edge instead of recompiled per edge.
+  stage0:
     needs: prepare
+    if: ${{ !cancelled() && needs.prepare.outputs.stage0 != '[]' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 240
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      matrix:
+        entry: ${{ fromJson(needs.prepare.outputs.stage0) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Cache distfiles
+      - name: Prepare environment
+        run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Restore ccache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: /tmp/distfiles-cache
-          key: distfiles-${{ matrix.package }}-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
+          path: work/ccache
+          key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
-            distfiles-${{ matrix.package }}-
+            binhost-ccache-
+          save-always: 'true'
+      - name: Restore distfiles
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/distfiles
+          key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-distfiles-
+          save-always: 'true'
+      - name: Build ${{ matrix.entry.package }}
+        uses: ./.github/actions/matrix-build
+        with:
+          package: ${{ matrix.entry.package }}
+          prior_dir: ""
+          ccache_dir: work/ccache
+          distfiles_dir: work/distfiles
+          result_dir: work/result
+          builder_image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binpkg
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: binpkg-s0-${{ matrix.entry.id }}
+          path: work/result
+          if-no-files-found: error
 
-      - name: Cache ccache
+  stage1:
+    needs: [prepare, stage0]
+    if: ${{ !cancelled() && needs.prepare.outputs.stage1 != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        entry: ${{ fromJson(needs.prepare.outputs.stage1) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Prepare environment
+        run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Restore ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/ccache
+          key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-ccache-
+          save-always: 'true'
+      - name: Restore distfiles
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/distfiles
+          key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-distfiles-
+          save-always: 'true'
+      - name: Download earlier-stage binpkg artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binpkg-*
+          path: work/prior
+          merge-multiple: true
+        continue-on-error: true
+      - name: Build ${{ matrix.entry.package }}
+        uses: ./.github/actions/matrix-build
+        with:
+          package: ${{ matrix.entry.package }}
+          prior_dir: work/prior
+          ccache_dir: work/ccache
+          distfiles_dir: work/distfiles
+          result_dir: work/result
+          builder_image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binpkg
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: binpkg-s1-${{ matrix.entry.id }}
+          path: work/result
+          if-no-files-found: error
+
+  stage2:
+    needs: [prepare, stage0, stage1]
+    if: ${{ !cancelled() && needs.prepare.outputs.stage2 != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        entry: ${{ fromJson(needs.prepare.outputs.stage2) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Prepare environment
+        run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Restore ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/ccache
+          key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-ccache-
+          save-always: 'true'
+      - name: Restore distfiles
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/distfiles
+          key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-distfiles-
+          save-always: 'true'
+      - name: Download earlier-stage binpkg artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binpkg-*
+          path: work/prior
+          merge-multiple: true
+        continue-on-error: true
+      - name: Build ${{ matrix.entry.package }}
+        uses: ./.github/actions/matrix-build
+        with:
+          package: ${{ matrix.entry.package }}
+          prior_dir: work/prior
+          ccache_dir: work/ccache
+          distfiles_dir: work/distfiles
+          result_dir: work/result
+          builder_image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binpkg
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: binpkg-s2-${{ matrix.entry.id }}
+          path: work/result
+          if-no-files-found: error
+
+  stage3:
+    needs: [prepare, stage0, stage1, stage2]
+    if: ${{ !cancelled() && needs.prepare.outputs.stage3 != '[]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        entry: ${{ fromJson(needs.prepare.outputs.stage3) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Prepare environment
+        run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Restore ccache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/ccache
+          key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-ccache-
+          save-always: 'true'
+      - name: Restore distfiles
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: work/distfiles
+          key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-distfiles-
+          save-always: 'true'
+      - name: Download earlier-stage binpkg artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binpkg-*
+          path: work/prior
+          merge-multiple: true
+        continue-on-error: true
+      - name: Build ${{ matrix.entry.package }}
+        uses: ./.github/actions/matrix-build
+        with:
+          package: ${{ matrix.entry.package }}
+          prior_dir: work/prior
+          ccache_dir: work/ccache
+          distfiles_dir: work/distfiles
+          result_dir: work/result
+          builder_image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:builder
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binpkg
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: binpkg-s3-${{ matrix.entry.id }}
+          path: work/result
+          if-no-files-found: error
+
+  # Compose the bins built by the matrix into the published, fully
+  # self-contained binhost image. The matrix artifacts arrive as the
+  # `binpkg-staging` build context (staged into PKGDIR before the emerges), so
+  # the compiled gaps install as binpkgs; the make-binpkg.sh compose then
+  # mirrors the remaining official binaries, re-emits the whole closure via
+  # quickpkg, regenerates the index, prunes, and fails closed before push.
+  publish:
+    needs: [prepare, stage0, stage1, stage2, stage3]
+    if: >-
+      ${{ !cancelled()
+          && needs.prepare.outputs.build_list != '[]'
+          && (needs.stage0.result == 'success' || needs.stage0.result == 'skipped')
+          && (needs.stage1.result == 'success' || needs.stage1.result == 'skipped')
+          && (needs.stage2.result == 'success' || needs.stage2.result == 'skipped')
+          && (needs.stage3.result == 'success' || needs.stage3.result == 'skipped')
+          && (github.event_name != 'pull_request'
+              || github.event.pull_request.head.repo.full_name == github.repository) }}
+    concurrency:
+      group: binhost-publish-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+          sync=0
+          [ "${{ github.event_name }}" = "schedule" ] && sync=1
+          echo "SYNC_PORTAGE=${sync}" >> "${GITHUB_ENV}"
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download matrix binpkg artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: binpkg-*
+          path: work/staging
+          merge-multiple: true
+      - name: Validate
+        run: python3 tools/validate.py
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+      - name: Restore ccache from the cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: /tmp/ccache-cache
-          key: ccache-${{ matrix.package }}-${{ hashFiles('config/packages.txt', 'ebuilds/**', 'packages/**') }}
+          key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
-            ccache-${{ matrix.package }}-
-
-      - name: Build package
-        env:
-          PACKAGE: ${{ matrix.package }}
-          DISTFILES_CACHE: /tmp/distfiles-cache
-          CCACHE_DIR: /tmp/ccache-cache
+            binhost-ccache-
+          save-always: 'true'
+      - name: Restore distfiles from the cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: /tmp/distfiles-cache
+          key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
+          restore-keys: |
+            binhost-distfiles-
+          save-always: 'true'
+      - name: Ensure cache prime dirs exist (first run is empty = cold start)
         run: |
-          mkdir -p "${DISTFILES_CACHE}" "${CCACHE_DIR}"
-          docker run --rm \
-            -e PACKAGE -e DISTFILES_CACHE -e CCACHE_DIR \
-            -v "${DISTFILES_CACHE}:/var/cache/distfiles:Z" \
-            -v "${CCACHE_DIR}:/var/cache/ccache:Z" \
-            -v "$PWD/ebuilds:/app/ebuilds:ro,Z" \
-            -v "$PWD/config:/app/config:ro,Z" \
-            -v "$PWD/packages:/app/packages:ro,Z" \
-            gentoo/stage3:systemd \
-            bash -exc '
-              set -euo pipefail
-              emerge-webrsync || emerge --sync
-              rm -f /etc/portage/make.profile
-              ln -s /var/db/repos/gentoo/profiles/default/linux/amd64/23.0/desktop/gnome/systemd /etc/portage/make.profile
-              
-              cat >> /etc/portage/make.conf <<MAKECONF
-ACCEPT_LICENSE="*"
-CFLAGS="-O2 -pipe"
-CXXFLAGS="${CFLAGS}"
-FEATURES="getbinpkg buildpkg binpkg-multi-instance parallel-fetch parallel-install ccache"
-MAKEOPTS="-j$(nproc)"
-EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=y"
-PKGDIR="/var/cache/binhost/gentoo-ing"
-CCACHE_DIR="/var/cache/ccache"
-MAKECONF
+          mkdir -p /tmp/ccache-cache
+          mkdir -p /tmp/distfiles-cache
+          test -d work/staging && echo "staging: $(find work/staging -name '*.tbz2' | wc -l) binpkg(s) from the matrix" || true
+      - name: Load current published manifest (if any)
+        id: baseline
+        run: |
+          set -x
+          docker pull ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          if docker image inspect ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest >/dev/null 2>&1; then
+            cid=$(docker create ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest /bin/sh)
+            docker cp "${cid}:/var/cache/binhost/gentoo-ing/.manifest" /tmp/baseline.manifest || true
+            docker rm "${cid}" >/dev/null
+          fi
+      - name: Build binhost image
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Containerfile
+          target: binhost
+          push: false
+          load: true
+          tags: localhost/${{ env.IMAGE_NAME }}:local
+          cache-from: type=gha,scope=binhost-builder
+          build-contexts: |
+            ccache-prime=/tmp/ccache-cache
+            distfiles-prime=/tmp/distfiles-cache
+            binpkg-staging=work/staging
+          build-args: |
+            SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
-              mkdir -p /etc/portage/repos.conf
-              cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
-[gentoo-ing-ebuilds]
-location = /app/ebuilds
-priority = 80
-EOF
+      - name: Build maker image (for security scanning)
+        id: build-maker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: Containerfile
+          target: maker
+          push: false
+          load: true
+          tags: localhost/${{ env.IMAGE_NAME }}:maker
+          cache-from: type=gha,scope=binhost-builder
+          build-contexts: |
+            ccache-prime=/tmp/ccache-cache
+            distfiles-prime=/tmp/distfiles-cache
+            binpkg-staging=work/staging
+          build-args: |
+            SYNC_PORTAGE=${{ env.SYNC_PORTAGE }}
 
-              mkdir -p /etc/portage/binrepos.conf
-              cat > /etc/portage/binrepos.conf/gentoo.conf <<EOF
-[gentoo]
-priority = 9999
-sync-uri = https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/
-verify-signature = false
-location = /var/cache/binhost/gentoo
-EOF
+      - name: Diff package set against published overlay
+        id: diff
+        run: |
+          cid=$(docker create localhost/${{ env.IMAGE_NAME }}:local /bin/sh)
+          docker cp "${cid}:/var/cache/binhost/gentoo-ing/.manifest" /tmp/new.manifest
+          docker rm "${cid}" >/dev/null
+          if [ -f /tmp/baseline.manifest ] && cmp -s /tmp/baseline.manifest /tmp/new.manifest; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=update cycle::no package version changed; skipping publish"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+            [ -f /tmp/baseline.manifest ] && diff -u /tmp/baseline.manifest /tmp/new.manifest || true
+          fi
+          cat /tmp/new.manifest
 
-              getuto >/dev/null 2>&1 || true
-              emerge --oneshot dev-util/ccache
-              
-              mkdir -p /var/cache/binhost/gentoo-ing
-              
-              echo "Building ${PACKAGE}..."
-              if emerge --update --deep --newuse "${PACKAGE}"; then
-                echo "SUCCESS: ${PACKAGE}"
-              else
-                echo "FAILED: ${PACKAGE}" >&2
-                exit 1
-              fi
-            '
+      - name: Extract ccache from the built maker
+        run: |
+          rm -rf /tmp/ccache-cache
+          mkdir -p /tmp/ccache-cache
+          cid=$(docker create localhost/${{ env.IMAGE_NAME }}:maker /bin/sh)
+          docker cp "${cid}:/var/cache/ccache/." /tmp/ccache-cache/ || true
+          docker rm "${cid}" >/dev/null
+          du -sh /tmp/ccache-cache 2>/dev/null || true
 
+      - name: Login to GitHub Container Registry
+        if: steps.diff.outputs.changed == 'true' && github.event_name != 'pull_request'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push images to GHCR
+        id: push
+        if: steps.diff.outputs.changed == 'true' && github.event_name != 'pull_request'
+        run: |
+          set -eoux pipefail
+          for tag in latest "${{ github.sha }}"; do
+            docker tag localhost/${{ env.IMAGE_NAME }}:local \
+              ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}
+            docker push ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${tag}
+          done
+          docker tag localhost/${{ env.IMAGE_NAME }}:maker \
+            ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          docker push ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          digest=$(docker image inspect ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            --format '{{index .RepoDigests 0}}')
+          echo "digest=${digest##*@}" >> "${GITHUB_OUTPUT}"
+
+      - name: Attest build provenance
+        if: steps.diff.outputs.changed == 'true' && github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
+        with:
+          subject-name: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+
+      - name: Report digest for consumer pin
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          echo "::notice title=consumer pin::ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
+
+  # syft + grype on the built packages, surfaced as Code Scanning alerts in the
+  # Security tab. Scans the `maker` stage (the image that actually composed the
+  # set), so CVEs are attributable to what we publish. Never fails the build:
+  # this is a report, not a gate.
+  security-scan:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: always() && !cancelled() && needs.publish.result == 'success'
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Export GHCR auth for scanners
+        run: |
+          token=$(printf '%s:%s' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | base64 -w0)
+          echo "DOCKER_AUTH_CONFIG={\"auths\":{\"ghcr.io\":{\"auth\":\"${token}\"}}}" >> "${GITHUB_ENV}"
+      - name: Generate SBOM (syft)
+        id: sbom
+        uses: anchore/sbom-action@006b7ce8314066bdf1765b4500370d40fa6917a3 # v0.24.2
+        with:
+          image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          format: cyclonedx-json
+          artifact-name: sbom-${{ env.IMAGE_NAME }}-maker
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan with Grype (report only, never fails)
+        id: scan
+        uses: anchore/scan-action@8576240a41341d866dbd7ebc72cd9fc0ef023f54 # v7.4.2
+        with:
+          image: ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:maker
+          fail-build: "false"
+          severity-cutoff: medium
+          output-format: sarif
+          output-file: results.sarif
+          by-cve: "true"
+          cache-db: "true"
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@5ba2889ada762081db2c4f32a729827dce632c7b # v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+
+  # Mirror the published cache as a plain HTTP Gentoo binrepo on GitHub Pages:
+  # `PORTAGE_BINHOST=https://HuntedRaven7.github.io/gentoo-ing-packages/` lets a
+  # stock Gentoo box `emerge --getbinpkg --usepkgonly` without pulling any
+  # container image. Mirrored only when a new :latest was actually pushed.
+  publish-pages:
+    needs: publish
+    if: needs.publish.result == 'success' && needs.publish.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+      packages: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Prepare environment
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract overlay for the HTTP binrepo
+        run: |
+          docker pull ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          rm -rf _site
+          mkdir -p _site
+          cid=$(docker create ghcr.io/${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:latest /bin/sh)
+          docker cp "${cid}:/var/cache/binhost/gentoo-ing/." _site/
+          docker rm "${cid}" >/dev/null
+          test -s _site/Packages && echo "HTTP binrepo prepared: $(du -sh _site | cut -f1)"
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  # One summary table of the whole matrix, always shown even on partial failure.
   report:
-    needs: build
+    needs: [prepare, bootstrap, stage0, stage1, stage2, stage3]
     if: always()
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Summary
+      - name: Generate summary
         run: |
           echo "## Build Matrix Summary" >> "${GITHUB_STEP_SUMMARY}"
           echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "| Package | Status |" >> "${GITHUB_STEP_SUMMARY}"
-          echo "|---------|--------|" >> "${GITHUB_STEP_SUMMARY}"
-          for job in "${NEEDS_BUILD_JOBS[@]}"; do
-            status="success"
-            if [ "$job" = "gvfs" ] || [ "$job" = "gnome-core-libs" ] || [ "$job" = "gnome-core-apps" ] || [ "$job" = "gnome-extra-apps" ]; then
-              status="skipped"
-            fi
-            echo "| ${job} | ${status} |" >> "${GITHUB_STEP_SUMMARY}"
-          done
+          echo "| Package | Status | Duration |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "|---------|--------|----------|" >> "${GITHUB_STEP_SUMMARY}"
+          gh api \
+            --paginate \
+            -H "Accept: application/vnd.github.v3+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '.jobs[] | select(.name | startswith("Build")) | "\(.name) | \(.conclusion) | \(.duration // "N/A")"' \
+            | while read -r line; do
+              if [ -n "$line" ]; then
+                echo "| $line |" >> "${GITHUB_STEP_SUMMARY}"
+              fi
+            done
         env:
-          NEEDS_BUILD_JOBS: ${{ toJson(needs.build.outputs) }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

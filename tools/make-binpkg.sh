@@ -29,134 +29,15 @@ set -euo pipefail
 BINHOST="/var/cache/binhost/gentoo-ing"
 EBUILDS="/app/ebuilds"
 EBUILDS_EXPORT="/var/cache/binhost/gentoo-ing-ebuilds"
-OFFICIAL_BINHOST="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64/"
-BRANCH_PROFILE="default/linux/amd64/23.0/desktop/gnome/systemd"
 
-# 1. Portage tree. stage3 images ship a snapshot; SYNC_PORTAGE fetches a fresh
-#    one for the scheduled (every 2 days) update cycle.
-if [ ! -d /var/db/repos/gentoo/profiles ]; then
-    emerge-webrsync || emerge --sync
-elif [ "${SYNC_PORTAGE:-0}" = "1" ]; then
-    emerge-webrsync || emerge --sync
-fi
+# 1-7. Shared build environment (tree, profile, make.conf, repos.conf, keywords,
+#      USE overrides, official binhost as dependency source, signature trust,
+#      ccache). Same script the Containerfile `builder` stage and every matrix
+#      job use, so the single-container maker and the matrix are identical.
+bash /app/tools/bootstrap-env.sh
 
-# 2. Profile
-rm -f /etc/portage/make.profile
-ln -s "/var/db/repos/gentoo/profiles/${BRANCH_PROFILE}" /etc/portage/make.profile
-
-# 3. make.conf. Binpkg-respect-use=y (same as the consumer): the maker only
-#    mirrors an official binary when its USE flags already match this profile's
-#    (the gnome desktop profile the consumer also uses); everything whose USE
-#    differs -- the bulk of the desktop closure the official host builds on the
-#    bare systemd profile -- is compiled here. This GUARANTEES the emitted
-#    binpkgs satisfy the consumer's strict --binpkg-respect-use=y, so a
-#    non-matching mirrored binary can never slip into the overlay and brick the
-#    sealed consumer build. --buildpkg emits every merged package into PKGDIR
-#    (the overlay is then self-contained for the entire consumer set).
-touch /etc/portage/make.conf
-grep -q '^ACCEPT_LICENSE=' /etc/portage/make.conf \
-    || echo 'ACCEPT_LICENSE="*"' >> /etc/portage/make.conf
-# This is a PERSONAL binhost -- the binaries are shipped to the owner's machine
-# (Ryzen 7 5800X, Zen 3), never to generic consumer hardware. So the maker
-# compiles with an explicit -march/-mtune for that CPU. NOTE: -march=native must
-# NOT be used here, because the actual compile runs on GitHub Actions runner
-# hardware inside the maker container, not on the target machine -- narrow would
-# target the runner's CPU. Setting znver3 explicitly is what makes the produced
-# binpkgs match the owner's silicon. If the OS image ever has to run on other
-# hardware, relax this back to the generic x86-64 default.
-grep -q '^CFLAGS=' /etc/portage/make.conf \
-    || echo 'CFLAGS="-march=znver3 -O2 -pipe"' >> /etc/portage/make.conf
-grep -q '^CXXFLAGS=' /etc/portage/make.conf \
-    || echo 'CXXFLAGS="${CFLAGS}"' >> /etc/portage/make.conf
-grep -q '^PKGDIR=' /etc/portage/make.conf \
-    || echo "PKGDIR=${BINHOST}" >> /etc/portage/make.conf
-grep -q '^FEATURES=.*getbinpkg' /etc/portage/make.conf \
-    || echo 'FEATURES="-manifest getbinpkg binpkg-multi-instance parallel-fetch parallel-install ccache"' >> /etc/portage/make.conf
-NPROC=$(nproc)
-grep -q '^MAKEOPTS=' /etc/portage/make.conf \
-    || echo "MAKEOPTS=\"-j${NPROC}\"" >> /etc/portage/make.conf
-grep -q '^EMERGE_DEFAULT_OPTS=' /etc/portage/make.conf \
-    || echo 'EMERGE_DEFAULT_OPTS="--getbinpkg --buildpkg --binpkg-respect-use=y"' >> /etc/portage/make.conf
-grep -q '^CCACHE_DIR=' /etc/portage/make.conf \
-    || echo "CCACHE_DIR=/var/cache/ccache" >> /etc/portage/make.conf
-
-# 4. Vendored ebuild overlay (bootc, gum, just) so the full set resolves.
-# The section name MUST equal the repo's internal name (profiles/repo_name).
-mkdir -p /etc/portage/repos.conf
-cat > /etc/portage/repos.conf/gentoo-ing-ebuilds.conf <<EOF
-[gentoo-ing-ebuilds]
-location = ${EBUILDS}
-priority = 80
-EOF
-
-# Toolchain atoms used to compile the gaps may trail the stable branch on
-# amd64. Accept ~amd64 for THOSE ONLY, so the gap binaries themselves stay
-# stable-visible to consumers (they only ever consume the finished binpkg).
-# Bare atoms only: '=cat/pkg-*' ranges are invalid in package.accept_keywords.
-mkdir -p /etc/portage/package.accept_keywords
-cat > /etc/portage/package.accept_keywords/toolchains <<EOF
-dev-lang/rust-bin ~amd64
-dev-lang/go ~amd64
-dev-lang/go-bootstrap ~amd64
-EOF
-
-# gentoo-kernel-bin ships initramfs by default and requires an installkernel
-# that can generate it (USE dracut), which the stable official binpkg lacks.
-mkdir -p /etc/portage/package.use
-cat > /etc/portage/package.use/installkernel <<EOF
-sys-kernel/installkernel dracut
-EOF
-
-# --binpkg-respect-use=y USE-gap overrides. The strict =y resolution (same as
-# the sealed consumer) refuses any official binpkg whose USE flags diverge from
-# this (desktop/gnome) profile, and portage can't always fall back to a source
-# build on its own. Forcing the flag here makes the maker compile the atom from
-# source to match (--buildpkg then emits a binpkg with the required USE).
-#   - GDM -> net-fs/samba -> >=net-libs/ngtcp2-1.12.0[gnutls], but the official
-#     ngtcp2 binpkg ships -gnutls.
-#   - podman -> app-containers/containers-common -> net-firewall/iptables[nftables],
-#     but the official iptables binpkg ships -nftables.
-cat > /etc/portage/package.use/respect-use <<EOF
-net-libs/ngtcp2 gnutls
-net-firewall/iptables nftables
-EOF
-
-# 5. Official binhost supplies dependency binaries for the gap builds.
-mkdir -p /etc/portage/binrepos.conf
-cat > /etc/portage/binrepos.conf/gentoo.conf <<EOF
-[gentoo]
-priority = 9999
-sync-uri = ${OFFICIAL_BINHOST}
-verify-signature = false
-location = /var/cache/binhost/gentoo
-EOF
-
-# 6. Trust the official binhost signature. Portage verifies official binpkgs
-#    unconditionally in this version (unknown key = package unusable);
-#    getuto is the supported trust helper for the release key. The later
-#    emerge is the real gate: a signature failure still aborts the build.
-getuto >/dev/null 2>&1 || true
-
-# 7. ccache as the compile cache. The gap set (bootc, gum, just, kernel, and the
-#    GNOME stack) is compiled here; ccache caches those C/C++ compiles
-#    under /var/cache/ccache, which the workflow primes from its cache and saves
-#    back, so unchanged compiles reuse past results instead of rebuilding every
-#    run. ccache itself is build-env-only (never shipped: it is in
-#    config/prune.txt). Portage's FEATURES=ccache prepends /usr/lib/ccache/bin to
-#    the PATH; ccache installs its own plain-name shims there, and we add the
-#    CHOST-prefixed names portage/configure also invoke. ccache preserves the
-#    invocation name when exec'ing the real compiler, so GCC keeps its g++/gcc
-#    language semantics in configure probes (this is exactly what a bootstrap
-#    whose C++ checks all failed was missing).
 # 7b. Distfiles cache: if a prior run cached distfiles, symlink them into
 #     PORTAGE_DISTCACHE so unchanged source tarballs don't re-download.
-emerge --oneshot dev-util/ccache
-mkdir -p /var/cache/ccache
-mkdir -p /usr/lib/ccache/bin
-ln -sf /usr/bin/ccache /usr/lib/ccache/bin/ccache
-for target in x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
-    ln -sf /usr/bin/ccache "/usr/lib/ccache/bin/${target}"
-done
 if [ -d /var/cache/distfiles ]; then
     mkdir -p /var/cache/distfiles
     ln -sf /var/cache/distfiles /var/cache/ccache/distfiles 2>/dev/null || true

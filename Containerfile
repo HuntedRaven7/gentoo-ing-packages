@@ -1,37 +1,45 @@
 # gentoo-ing-packages - the full Gentoo binary package host (binhost) for gentoo-ing.
 #
-# This image has TWO jobs:
+# Three stages, three jobs:
 #
-# 1. SERVICE the FULL gentoo-ing set (config/packages.txt): mirror each atom the
-#    official Gentoo binhost already carries with identical USE (base system
-#    packages), and COMPILE the atoms whose USE diverge or that it lacks (the
-#    desktop closure incl. full GNOME, bootc, kernel, firmware, skopeo, flatpak,
-#    iwd, jq, installkernel, gum, just) once per published image, all resolved
-#    with --binpkg-respect-use=y to match the consumer. --buildpkg emits a binpkg
-#    for every merged package, so the overlay is self-contained and consumers
-#    never compile or hit the official host at runtime. Compiles route through
-#    ccache (/var/cache/ccache, primed from the workflow cache) so the GNOME-scale
-#    rebuilds reuse past work.
-# 2. PUBLISH a data-only image containing the binhost tree plus the ebuild
-#    overlay that gives consumers atom visibility for the packages
-#    ::gentoo does not carry at all (bootc, gum, just), AND (via the publish
-#    workflow) the same tree as a plain HTTP repo on GitHub Pages.
-#
-#   /var/cache/binhost/gentoo-ing          -> binpkg tree + Packages index
-#   /var/cache/binhost/gentoo-ing-ebuilds  -> ebuild overlay (repo_name,
-#                                             metadata/layout.conf, ebuilds)
+#   builder  (target)   = the SHARED build environment. Portage tree, profile,
+#                         make.conf, vendored ebuild overlay, toolchains
+#                         accept_keywords, USE-gap overrides, official binhost
+#                         dependency source + signature trust, ccache — baked
+#                         once by tools/bootstrap-env.sh. The Build Matrix
+#                         workflow builds it through BuildKit with the gha layer
+#                         cache, so the very expensive emerge-webrsync +
+#                         configuration happens once per repo, then every one
+#                         of the ~45 parallel matrix edges reuses the cached
+#                         image (works on fork PRs too: no registry write).
+#   maker     (target)   = compose + verify. The single-container build of the
+#                         FULL set (config/packages.txt), used by the matrix
+#                         `publish` job and local `just build`. The matrix
+#                         edges' compiled binpkgs arrive via the `packages/`
+#                         fast-path staging, so they are INSTALLED as binpkgs
+#                         instead of recompiled; everything else is mirrored
+#                         from the official host. It re-emits the whole closure,
+#                         regenerates the Packages index, prunes stale versions,
+#                         and fails closed if the overlay cannot serve the full
+#                         declared set.
+#   binhost   (default)  = the published data-only image: the binhost tree +
+#                         the ebuild overlay bundled at
+#                           /var/cache/binhost/gentoo-ing
+#                           /var/cache/binhost/gentoo-ing-ebuilds
 #
 # gentoo-ing consumes it with `COPY --from=` pinned by digest, the same way the
 # finpilot factory pulls projectbluefin/common and ublue-os/brew.
 #
-# The official Gentoo binhost is used ONLY inside the maker stage: it supplies
-# the mirrored binaries and the dependency binaries for compiled gaps.
+# ccache (/var/cache/ccache) and distfiles (/var/cache/distfiles) are RUNTIME
+# state, never baked: the workflow primes them through the ccache-prime and
+# distfiles-prime build contexts and round-trips them through actions/cache,
+# which keeps the builder image layers deterministic and cacheable.
 
 ARG GENTOO_IMAGE="gentoo/stage3:systemd"
-FROM ${GENTOO_IMAGE} AS maker
+FROM ${GENTOO_IMAGE} AS builder
 
-# The scheduled update cycle (publish.yml cron) passes SYNC_PORTAGE=1 to refresh
-# the portage tree before the emerge, so -uDN discovers version bumps.
+# The scheduled update cycle (build-matrix.yml cron) passes SYNC_PORTAGE=1 to
+# refresh the portage tree so -uDN discovers version bumps.
 ARG SYNC_PORTAGE="0"
 ENV SYNC_PORTAGE=${SYNC_PORTAGE}
 
@@ -49,6 +57,20 @@ COPY config /app/config
 COPY ebuilds /app/ebuilds
 COPY packages /app/packages
 
+# Bake the shared build environment. Deterministic: nothing here depends on the
+# cached ccache/distfiles state, so BuildKit layer cache hits across runs.
+RUN chmod +x /app/tools/bootstrap-env.sh \
+    && /app/tools/bootstrap-env.sh
+
+FROM builder AS maker
+
+# The matrix edges' compiled gap binpkgs, injected through the `binpkg-staging`
+# build context (CI: the publish job's collected stage artifacts; local `just
+# build`: the repo's own packages/ dir). make-binpkg.sh stages /app/packages
+# into PKGDIR first, so these are INSTALLED as binpkgs instead of recompiled.
+# The regular context stays small (the artifacts never touch the workspace).
+COPY --from=binpkg-staging / /app/packages/
+
 # Prime ccache from the previous run's cache, if any. The publish workflow
 # supplies this additional build context (ccache-prime) round-tripped through
 # actions/cache; local `just build` does the same from .cache/ccache. An empty
@@ -61,10 +83,10 @@ COPY --from=ccache-prime / /var/cache/ccache/
 # context primes nothing and simply starts cold.
 COPY --from=distfiles-prime / /var/cache/distfiles/
 
-# Bootstrap portage, build the full overlay set (mirrored + compiled gaps) as
-# binpkgs, regenerate the index (strict: a corrupt tbz2 breaks the image so it
-# never reaches consumers). Fail-closed: a run that cannot serve the full set
-# exits non-zero inside make-binpkg.sh.
+# Compose and verify the full overlay set (mirrored + compiled gaps) as binpkgs,
+# regenerate the index (strict: a corrupt tbz2 breaks the image so it never
+# reaches consumers). Fail-closed: a run that cannot serve the full set exits
+# non-zero inside make-binpkg.sh.
 RUN chmod +x /app/tools/make-binpkg.sh \
     && /app/tools/make-binpkg.sh \
     && test -f "${PKGDIR}/Packages"

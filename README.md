@@ -70,37 +70,66 @@ generic flags.
 
 ## How it works
 
-- `tools/make-binpkg.sh` bootstraps Portage (tree, profile, `PKGDIR`), registers
-  the vendored ebuild overlay + the official binhost as the dep source, then
-  `emerge --buildpkg`s the full set. Toolchains (`rust-bin`, `go`,
-  `go-bootstrap`) are accepted as `~amd64` for those atoms only.
-- The `Containerfile` runs that script in a `maker` stage, regenerates the
-  `Packages` index with `emaint binhost --fix` (strict: a corrupt tbz2 breaks
-  the image), then publishes only the binhost tree + ebuild overlay to
-  `scratch`.
+One workflow (`.github/workflows/build-matrix.yml`) drives the whole factory,
+mirroring the utah-packages staged-matrix model:
+
+- **bootstrap** bakes the shared **builder** image (`Containerfile` target
+  `builder`: portage tree, profile, make.conf, ebuild overlay, official binhost
+  trust via getuto, ccache) and pushes it to `:builder`. It is deterministic —
+  ccache/distfiles are runtime mounts, never baked — so GitHub's BuildKit layer
+  cache keeps hitting across runs and no job ever re-bootstraps portage.
+- **prepare** computes the per-package matrices. `config/build-stages.txt`
+  assigns every atom to a dependency-ordered stage (0–3): the GNOME stack rides
+  on top of stage-0 foundations, gdm/control-center on top of gnome-shell, and
+  so on. Push/schedule skip atoms the published `.manifest` already carries;
+  a pull request builds exactly the ebuilds it touches.
+- **stage0…stage3** run one parallel edge per atom on the builder image. Each
+  edge mounts the shared **ccache/distfiles** caches (round-tripped between
+  runs via the workflow cache, not per-package), and from stage 1 up all
+  earlier stages' binpkgs as a local binrepo at `priority 10000` — outranking
+  the official 9999 — so a compiled gap in the middle of the set (kernel, bootc,
+  the desktop closure) is built *once* and reused, not recompiled per edge.
+- **publish** (the compose) feeds every matrix artifact into the `maker` stage
+  through the `binpkg-staging` build context, then `tools/make-binpkg.sh`
+  mirrors the official prebuilds for atoms whose USE matches, runs
+  `emerge --update --deep` over the set, quickpkgs the full closure, regenerates
+  the `Packages` index (`emaint binhost --fix`, strict), and prunes. A byte-
+  stable `.manifest` diff against the current publish skips the push when
+  nothing changed; otherwise it pushes `:latest`, `:<sha>` and `:maker`, with
+  build-provenance attestation.
+
+Supporting pieces:
+
+- `tools/bootstrap-env.sh` performs the one-time Portage setup the builder image
+  bakes (tree sync, `default/linux/amd64/23.0/desktop/gnome/systemd` profile,
+  make.conf, ebuild overlay, official binrepo + getuto, ccache). Toolchains
+  (`rust-bin`, `go`, `go-bootstrap`) are accepted as `~amd64` for those atoms
+  only.
+- `tools/matrix-build.sh` runs the per-edge `emerge --update --deep --newuse
+  <atom>` with the prior-stage binrepo and the shared caches, failing closed if
+  no binpkg results.
+- `tools/make-binpkg.sh` remains the compose step the published image is built
+  from, and needs `distfiles-prime`/`ccache-prime`/`binpkg-staging` build
+  contexts (see `Justfile` `build`).
 - `packages/` still accepts plopped-in `.tbz2` files (optionally fetched via
   `just seed` from the official host once it starts carrying something) — they
   are staged before the builds and indexed afterwards.
-- CI caches the emerge result per layer: an unchanged set is reused, so the
-  factory only recompiles when a listed atom actually changes.
-- Compiles route through **ccache** (`/var/cache/ccache`, portage-native
-  `FEATURES=ccache`), round-tripped through the workflow cache between runs —
-  unchanged compiles (bootc, gum, just, kernel, and the GNOME stack)
-  are not re-done every run.
-- **Fail-closed:** a run whose overlay cannot serve the full declared set
-  (empty manifest, or any `config/packages.txt` atom absent from it) exits
-  non-zero, so a partial cache is never published to the sealed consumer.
+- **Fail-closed:** the compose exits non-zero if the overlay cannot serve the
+  full declared set (empty manifest, or any `config/packages.txt` atom absent
+  from it), so a partial cache is never published to the sealed consumer.
 - `main` publishes `ghcr.io/HuntedRaven7/gentoo-ing-packages:latest` plus a
-  `:gitsha` tag. Pull requests build and validate only — never publish.
+  `:<sha>` tag. Pull requests build and validate only — never publish (a fork
+  PR's edges rebuild the builder locally from the layer cache instead of the
+  registry push).
 - Consumers pin the image by digest (Renovate tracks the digest in the
   consuming `Containerfile`'s `FROM` line).
 
 ## Update cycle (every 2 days)
 
-`publish.yml` runs on a cron too (`30 3 */2 * *`) with `SYNC_PORTAGE=1`: the
-maker stage refreshes the portage tree, runs `emerge --update --deep --newuse`
-over `config/packages.txt`, re-mirrors/repackages only what actually moved, and
-prunes stale content. The prune policy keeps the cache intentionally small:
+`build-matrix.yml` runs on a cron too (`30 3 */2 * *`) with `SYNC_PORTAGE=1`:
+the builder image and the maker stage refresh the portage tree, the matrix does
+`emerge --update --deep --newuse` over `config/packages.txt`, and the compose
+re-mirrors/repackages only what actually moved, then prunes stale content. The prune policy keeps the cache intentionally small:
 
 - one version per package (`tools/prune-binhost.py` deletes superseded builds),
 - build-time-only toolchains never ship (`config/prune.txt` — the rust/go
@@ -136,9 +165,9 @@ stays non-blocking.
 
 ## Security scanning (reports, not gates)
 
-`security-scan` (part of `publish.yml`) runs **syft** (SBOM, attached as an
-artifact) and **grype** (CVEs) against the `maker` image — the stage that
-actually compiled the set — and uploads the SARIF to GitHub **Code
+`security-scan` (a job in `build-matrix.yml`) runs **syft** (SBOM, attached as
+an artifact) and **grype** (CVEs) against the published `:maker` image — the
+stage that actually composed the set — and uploads the SARIF to GitHub **Code
 Scanning**, so findings land on the repo's Security tab. `fail-build` is off:
 findings never block a publish. The `:maker` tag is what makes this cheap — the
 scan job pulls the already-built stage instead of recompiling.
@@ -164,9 +193,13 @@ and the other must follow.
 2. Add the same atom to `config/packages.txt` here (sync-check enforces it).
 3. If `::gentoo` lacks its ebuild, add `ebuilds/<category>/<pkg>/` (see
    `ebuilds/sys-apps/bootc/` for a live-ebuild pattern).
-4. Optional fast path: stage an official `.tbz2` into `packages/` (or a tbz2
+4. If the atom's dependency closure must ride on earlier builds (GNOME stack,
+   gdm, …), assign it a stage in `config/build-stages.txt` so the compile
+   happens once and is reused by everything downstream.
+5. Optional fast path: stage an official `.tbz2` into `packages/` (or a tbz2
    you produced on any Gentoo machine) to skip compiling that atom.
-5. `just validate`, commit, push. CI rebuilds + publishes `:latest`. The next
+6. Open a PR (`just validate` first): CI builds exactly the atoms you changed.
+   Merging to `main` runs the full matrix and publishes `:latest`; the next
    `gentoo-ing` build picks it up.
 
 See [docs/adding-packages.md](docs/adding-packages.md) for the full walkthrough.
