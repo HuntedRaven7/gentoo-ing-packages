@@ -99,27 +99,37 @@ runs:
       env:
         PACKAGE: ${{ inputs.package }}
         PRIOR_DIR: ${{ inputs.prior_dir }}
-        RESULT_DIR: /result
+        RESULT_DIR: ${{ inputs.result_dir }}
         CCACHE_DIR: ${{ inputs.ccache_dir }}
         DISTFILES_DIR: ${{ inputs.distfiles_dir }}
       run: |
         set -euo pipefail
+        # Docker bind mounts require absolute host paths. The ccache/distfiles/
+        # prior/result inputs arrive workspace-relative; resolve them against the
+        # workspace (the runner's cwd) so the -v flags are absolute.
+        ccache_abs="$(realpath -m "${CCACHE_DIR}")"
+        distfiles_abs="$(realpath -m "${DISTFILES_DIR}")"
+        result_abs="$(realpath -m "${RESULT_DIR}")"
+        prior_abs=""
+        if [ -n "${PRIOR_DIR}" ]; then
+          prior_abs="$(realpath -m "${PRIOR_DIR}")"
+        fi
         args=(
           --rm
           -e PACKAGE
           -e PRIOR_DIR=/prior
           -e RESULT_DIR=/result
         )
-        if [ -n "${PRIOR_DIR}" ]; then
-          args+=(-v "${PRIOR_DIR}:/prior:Z")
+        if [ -n "${prior_abs}" ]; then
+          args+=(-v "${prior_abs}:/prior:Z")
         fi
         args+=(
-          -v "${CCACHE_DIR}:/var/cache/ccache:Z"
-          -v "${DISTFILES_DIR}:/var/cache/distfiles:Z"
+          -v "${ccache_abs}:/var/cache/ccache:Z"
+          -v "${distfiles_abs}:/var/cache/distfiles:Z"
           -v "${GITHUB_WORKSPACE}/ebuilds:/app/ebuilds:ro,Z"
           -v "${GITHUB_WORKSPACE}/config:/app/config:ro,Z"
           -v "${GITHUB_WORKSPACE}/packages:/app/packages:ro,Z"
-          -v "${{ inputs.result_dir }}:/result:Z"
+          -v "${result_abs}:/result:Z"
           localhost/builder:local
           bash /app/tools/matrix-build.sh
         )
