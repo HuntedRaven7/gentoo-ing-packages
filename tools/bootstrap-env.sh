@@ -113,6 +113,19 @@ $(find "${EBUILDS}" -name '*.ebuild' -print0 \
       done | sort -u)
 EOF
 
+# ghostty builds with USE=wayland, which pins the system library
+# gui-libs/gtk4-layer-shell (its DEPEND "--sysroot-lib-layershell" links the
+# system lib, guaranteed via RDEPEND "gui-libs/gtk4-layer-shell:="). The atom
+# is only ~amd64 in ::gentoo, so without acceptance every ghostty edge fails
+# with "All ebuilds that could satisfy ... masked". Accept it in the factory
+# (buildenv-only, so the ~amd64 layer shell binpkg is emitted into the overlay
+# and consumers resolve it from there; gentoo-ing already mirrors overlay
+# atoms as ~amd64).
+mkdir -p /etc/portage/package.accept_keywords
+cat > /etc/portage/package.accept_keywords/consumer-deps <<EOF
+gui-libs/gtk4-layer-shell ~amd64
+EOF
+
 # gentoo-kernel-bin ships initramfs by default and requires an installkernel
 # that can generate it (USE dracut), which the stable official binpkg lacks.
 mkdir -p /etc/portage/package.use
@@ -168,5 +181,48 @@ ln -sf /usr/bin/ccache /usr/lib/ccache/bin/ccache
 for target in x86_64-pc-linux-gnu-gcc x86_64-pc-linux-gnu-g++; do
     ln -sf /usr/bin/ccache "/usr/lib/ccache/bin/${target}"
 done
+
+# 7b. Break the glib build-time cycle (2026 tree).
+#
+# The current tree has a HARD dependency cycle between exactly the four
+# packages that a fresh GLib build drags in as build-time Python tooling:
+#
+#     dev-libs/glib        ->(BDEPEND) dev-python/docutils
+#     dev-python/docutils  ->(RDEPEND) dev-python/pillow
+#     dev-python/pillow    ->(truetype) media-libs/harfbuzz
+#     media-libs/harfbuzz  ->(glib) dev-libs/glib
+#
+# On a fresh stage3 none of the four is installed, so ANY emerge that has to
+# build glib (which is every gnome-profile container build here) also has to
+# merge docutils/pillow/harfbuzz in the SAME transaction — and portage cannot
+# find an order, because the ring is real (each edge is mandatory). That is
+# the "Error: circular dependencies: (dev-python/docutils...) depends on
+# (dev-python/pillow...) depends on ... (dev-libs/glib...) (buildtime)" seen
+# in every matrix edge of the first run.
+#
+# It is broken HERE, once, in the baked environment, by dropping
+# harfbuzz[glib] for a single isolated bootstrap emerge: with that edge gone
+# the four merge cleanly (harfbuzz(-glib) -> pillow -> docutils -> glib).
+# The override is immediately removed and harfbuzz re-merged with its profile
+# USE, so the baked image — and every binpkg it may emit — carries the correct
+# flags. After this, every later -uDN (edges and the maker) finds all four
+# already installed at current versions and never has to merge them alongside
+# a fresh glib again.
+#
+# Cost is self-limiting: --update without --newuse merges only actual version
+# bumps, and the final --newuse harfbuzz re-merge is a rebuild only on the run
+# that actually flipped it, so a clean bake/publish is a no-op. --buildpkg-
+# exclude keeps the temporary -glib harfbuzz bin (and the others' stale bins)
+# out of PKGDIR; the compose's quickpkg pass re-emits docutils/pillow/harfbuzz/
+# glib into the overlay with their final USE flags.
+mkdir -p /etc/portage/package.use
+echo 'media-libs/harfbuzz -glib' > /etc/portage/package.use/cycle-break
+emerge --oneshot --update --buildpkg-exclude \
+    'dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz' \
+    dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz
+rm -f /etc/portage/package.use/cycle-break
+emerge --oneshot --newuse --buildpkg-exclude \
+    'dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz' \
+    media-libs/harfbuzz
 
 echo "ENV: profile=${BRANCH_PROFILE}; make.conf, repos.conf, keywords, USE, binhost signature and ccache configured"

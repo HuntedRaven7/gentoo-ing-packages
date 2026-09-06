@@ -59,7 +59,15 @@ emaint binhost --fix --dir "${RESULT_DIR}" || true
 
 # 4. Build the atom. Deps resolve from /prior (this factory) > official binhost
 #    > source, all behind the strict --binpkg-respect-use=y the consumer uses.
-emerge --update --deep --newuse "${PACKAGE}"
+#    Deliberately NO --deep: this is a per-atom edge, not a world refresh.
+#    --deep would re-scan the ENTIRE installed world in every one of the ten
+#    parallel edges, pull each whole closure into each transaction, and (with
+#    the 2026 tree's hard glib/docutils/pillow/harfbuzz cycle) force a fresh
+#    glib to be merged alongside its build-time deps in a single transaction
+#    portage cannot order. --update scoped to the atom builds exactly this
+#    package plus whatever the strict resolution is missing; the compose
+#    (make-binpkg.sh -uDN over the full set) is the single whole-world refresh.
+emerge --update --newuse "${PACKAGE}"
 
 atom=$(basename "${PACKAGE}")
 
