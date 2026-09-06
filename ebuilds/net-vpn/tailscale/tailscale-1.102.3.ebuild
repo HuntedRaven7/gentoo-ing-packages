@@ -3,17 +3,66 @@
 
 EAPI=8
 
-inherit cargo
+inherit go-module linux-info shell-completion systemd sysroot tmpfiles
 
-DESCRIPTION=""
-HOMEPAGE="https://github.com/tailscale/tailscale"
-SRC_URI="https://github.com/tailscale/tailscale/archive/refs/tags/v${PV}.tar.gz"
+# Updated on every bump; commit that the upstream v1.102.3 tag points at.
+VERSION_GIT_HASH="9329c3677031109ff6d0b80abee0cddc8f35ff6f"
+VERSION_SHORT=${PV}
+VERSION_LONG=${PV}-t${VERSION_GIT_HASH::9}
 
-LICENSE=""
+DESCRIPTION="Tailscale vpn client"
+HOMEPAGE="https://tailscale.com"
+SRC_URI="https://github.com/tailscale/tailscale/archive/v${PV}.tar.gz -> ${P}.tar.gz"
+SRC_URI+=" https://github.com/gentoo-golang-dist/${PN}/releases/download/v${PV}/${P}-vendor.tar.xz"
+
+LICENSE="MIT"
+# Dependent licenses
+LICENSE+=" Apache-2.0 BSD BSD-2 ISC MPL-2.0"
 SLOT="0"
 KEYWORDS="~amd64"
-S="${WORKDIR}/tailscale-v${PV}"
+RESTRICT="test"
 
-DEPEND="dev-lang/rust:="
+CONFIG_CHECK="~TUN"
 
+RDEPEND="|| ( net-firewall/iptables net-firewall/nftables )"
+BDEPEND=">=dev-lang/go-1.26.4"
 
+src_compile() {
+	# This translates the build command from upstream's build_dist.sh to an
+	# ebuild equivalent.
+	local go_ldflags=(
+		-X tailscale.com/version.longStamp=${VERSION_LONG}
+		-X tailscale.com/version.shortStamp=${VERSION_SHORT}
+		-X tailscale.com/version.gitCommitStamp=${VERSION_GIT_HASH}
+	)
+	ego build -tags xversion -ldflags "${go_ldflags[*]}" -o bin/ ./cmd/tailscale ./cmd/tailscaled
+
+	einfo "generating shell completion files"
+	sysroot_try_run_prefixed ./bin/tailscale completion bash > ${PN}.bash || die
+	sysroot_try_run_prefixed ./bin/tailscale completion zsh > ${PN}.zsh || die
+	sysroot_try_run_prefixed ./bin/tailscale completion fish > ${PN}.fish || die
+}
+
+src_install() {
+	dosbin bin/tailscaled
+	dobin bin/tailscale
+
+	systemd_dounit cmd/tailscaled/{tailscaled.service,tailscale-online.target,tailscale-wait-online.service}
+	insinto /etc/default
+	newins cmd/tailscaled/tailscaled.defaults tailscaled
+	keepdir /var/lib/${PN}
+	fperms 0750 /var/lib/${PN}
+
+	newtmpfiles "${FILESDIR}/${PN}.tmpfiles" ${PN}.conf
+
+	newinitd "${FILESDIR}/${PN}d.initd" ${PN}
+	newconfd "${FILESDIR}/${PN}d.confd" ${PN}
+
+	[[ -s ${PN}.bash ]] && newbashcomp ${PN}.bash ${PN}
+	[[ -s ${PN}.zsh ]] && newzshcomp ${PN}.zsh _${PN}
+	[[ -s ${PN}.fish ]] && dofishcomp ${PN}.fish
+}
+
+pkg_postinst() {
+	tmpfiles_process ${PN}.conf
+}

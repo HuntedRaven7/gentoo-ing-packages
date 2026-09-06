@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+  <maintainer type="person">
+    <email>RobinGroves2007@proton.me</email>
+    <name>Robin Groves</name>
+  </maintainer>
+  <upstream>
+    <bugs-to>https://github.com/ghostty-org/ghostty/issues</bugs-to>
+    <remote-id type="github">ghostty-org/ghostty</remote-id>
+  </upstream>
+  <use>
+    <flag name="symlink">Install symlink for a "ghostty" terminfo entry</flag>
+  </use>
+</pkgmetadata>

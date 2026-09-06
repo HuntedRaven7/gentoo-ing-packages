@@ -48,6 +48,10 @@
 0	media-plugins/gst-plugins-meta
 0	app-containers/skopeo
 0	app-containers/podman
+0	x11-terms/ghostty
+0	x11-terms/ghostty-terminfo
+0	sys-apps/iproute2
+0	sys-boot/efibootmgr
 #
 # Stage 1 — GNOME plumbing/libraries the components below inherit. glib, dconf
 #           and gsettings schemas underpin everything with a settings DB; gvfs

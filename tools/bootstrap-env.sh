@@ -83,11 +83,34 @@ EOF
 # amd64. Accept ~amd64 for THOSE ONLY, so the gap binaries themselves stay
 # stable-visible to consumers (they only ever consume the finished binpkg).
 # Bare atoms only: '=cat/pkg-*' ranges are invalid in package.accept_keywords.
+#
+# zig-bin 0.15 is the ::gentoo prebuilt Zig that ghostty (BDEPEND) compiles
+# with; accepting ONLY zig-bin (not dev-lang/zig) keeps the factory from ever
+# trying to build Zig from source (LLVM).
 mkdir -p /etc/portage/package.accept_keywords
 cat > /etc/portage/package.accept_keywords/toolchains <<EOF
 dev-lang/rust-bin ~amd64
 dev-lang/go ~amd64
 dev-lang/go-bootstrap ~amd64
+dev-lang/zig-bin ~amd64
+EOF
+
+# Vendored overlay atoms follow the gentooit convention of KEYWORDS="~amd64"
+# (see .gentooit/*.yaml and ebuilds/). Accept EVERY ~amd64 overlay atom -- the
+# ghostty pair, bootc/gum/just, wl-clipboard/tailscale, the skeleton pins, all
+# of it -- so the factory's own pinned ebuilds resolve in the baked build
+# environment. Auto-derived so a newly added ~amd64 atom cannot silently fail
+# its matrix edge behind a "all ebuilds masked" emerge error. Consumers see the
+# same ~amd64 atoms and must accept them too (gentoo-ing does).
+cat > /etc/portage/package.accept_keywords/overlay <<EOF
+$(find "${EBUILDS}" -name '*.ebuild' -print0 \
+    | xargs -0 grep -l '^KEYWORDS=.*~amd64' \
+    | while read -r ebuild; do
+          rel="${ebuild#${EBUILDS}/}"
+          cat="${rel%%/*}"
+          pkg="${rel#${cat}/}"; pkg="${pkg%%/*}"
+          echo "${cat}/${pkg} ~amd64"
+      done | sort -u)
 EOF
 
 # gentoo-kernel-bin ships initramfs by default and requires an installkernel

@@ -5,9 +5,9 @@ upstream:
   package-name: tailscale
   tag-template: "v{version}"
 package:
-  description: ""
-  homepage: https://github.com/tailscale/tailscale
-  license: ""
+  description: "Tailscale vpn client"
+  homepage: https://tailscale.com
+  license: "MIT Apache-2.0 BSD BSD-2 ISC MPL-2.0"
   keywords: "~amd64"
   maintainer_email: gentoo-ing@huntedraven.com
   maintainer_name: gentoo-ing

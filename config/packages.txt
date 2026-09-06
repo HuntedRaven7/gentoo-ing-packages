@@ -63,6 +63,16 @@ gui-apps/wl-clipboard
 media-video/ffmpeg
 media-plugins/gst-plugins-meta
 
+# Terminal (ghostty + its terminfo companion). Vendored from the official tree
+# at 1.3.1; ghostty keys ~amd64 (accepted in the factory, see bootstrap-env.sh)
+# and RDEPENDs the terminfo package, so both must be in the set.
+x11-terms/ghostty
+x11-terms/ghostty-terminfo
+
+# Base utilities
+sys-apps/iproute2
+sys-boot/efibootmgr
+
 # GNOME desktop stack (systemd-only)
 gnome-base/gdm
 gnome-base/gnome-shell
