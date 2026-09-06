@@ -184,30 +184,23 @@ done
 
 # 7b. Break the glib build-time cycle (2026 tree).
 #
-# The current tree has a HARD dependency cycle between exactly the four
-# packages that a fresh GLib build drags in as build-time Python tooling:
+# The current tree has a HARD dependency cycle. On a fresh stage3, portage
+# cannot order the merge because each edge is mandatory. The cycle has shifted
+# since the initial report and now runs:
 #
-#     dev-libs/glib        ->(BDEPEND) dev-python/docutils
-#     dev-python/docutils  ->(RDEPEND) dev-python/pillow
-#     dev-python/pillow    ->(truetype) media-libs/harfbuzz
-#     media-libs/harfbuzz  ->(glib) dev-libs/glib
+#     dev-python/docutils  ->(runtime) dev-python/pillow
+#     dev-python/pillow    ->(runtime_slot_op) media-libs/libavif
+#     media-libs/libavif   ->(runtime) dev-libs/glib
+#     dev-libs/glib        ->(buildtime) dev-python/docutils
 #
-# On a fresh stage3 none of the four is installed, so ANY emerge that has to
-# build glib (which is every gnome-profile container build here) also has to
-# merge docutils/pillow/harfbuzz in the SAME transaction — and portage cannot
-# find an order, because the ring is real (each edge is mandatory). That is
-# the "Error: circular dependencies: (dev-python/docutils...) depends on
-# (dev-python/pillow...) depends on ... (dev-libs/glib...) (buildtime)" seen
-# in every matrix edge of the first run.
-#
-# It is broken HERE, once, in the baked environment, by dropping
-# harfbuzz[glib] for a single isolated bootstrap emerge: with that edge gone
-# the four merge cleanly (harfbuzz(-glib) -> pillow -> docutils -> glib).
-# The override is immediately removed and harfbuzz re-merged with its profile
-# USE, so the baked image — and every binpkg it may emit — carries the correct
-# flags. After this, every later -uDN (edges and the maker) finds all four
-# already installed at current versions and never has to merge them alongside
-# a fresh glib again.
+# It is broken HERE, once, in the baked environment, by installing docutils
+# and pillow first (so glib's buildtime dep is already satisfied), then
+# merging glib with harfbuzz[glib] temporarily disabled. The override is
+# immediately removed and harfbuzz re-merged with its profile USE, so the
+# baked image — and every binpkg it may emit — carries the correct flags.
+# After this, every later -uDN (edges and the maker) finds all four already
+# installed at current versions and never has to merge them alongside a fresh
+# glib again.
 #
 # Cost is self-limiting: --update without --newuse merges only actual version
 # bumps, and the final --newuse harfbuzz re-merge is a rebuild only on the run
@@ -218,11 +211,12 @@ done
 mkdir -p /etc/portage/package.use
 echo 'media-libs/harfbuzz -glib -introspection' > /etc/portage/package.use/cycle-break
 emerge --oneshot --update --buildpkg-exclude \
-    'dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz' \
-    dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz
+    dev-python/docutils dev-python/pillow
+emerge --oneshot --update --buildpkg-exclude \
+    'dev-libs/glib media-libs/harfbuzz' \
+    dev-libs/glib media-libs/harfbuzz
 rm -f /etc/portage/package.use/cycle-break
 emerge --oneshot --newuse --buildpkg-exclude \
-    'dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz' \
     media-libs/harfbuzz
 
 echo "ENV: profile=${BRANCH_PROFILE}; make.conf, repos.conf, keywords, USE, binhost signature and ccache configured"
