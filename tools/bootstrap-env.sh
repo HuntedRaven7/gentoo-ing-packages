@@ -216,7 +216,7 @@ done
 # out of PKGDIR; the compose's quickpkg pass re-emits docutils/pillow/harfbuzz/
 # glib into the overlay with their final USE flags.
 mkdir -p /etc/portage/package.use
-echo 'media-libs/harfbuzz -glib' > /etc/portage/package.use/cycle-break
+echo 'media-libs/harfbuzz -glib -introspection' > /etc/portage/package.use/cycle-break
 emerge --oneshot --update --buildpkg-exclude \
     'dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz' \
     dev-libs/glib dev-python/docutils dev-python/pillow media-libs/harfbuzz
