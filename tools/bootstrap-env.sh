@@ -194,22 +194,24 @@ done
 #     dev-libs/glib        ->(buildtime) dev-python/docutils
 #
 # It is broken HERE, once, in the baked environment, by installing docutils
-# and pillow first (so glib's buildtime dep is already satisfied), then
-# merging glib with harfbuzz[glib] temporarily disabled. The override is
-# immediately removed and harfbuzz re-merged with its profile USE, so the
-# baked image — and every binpkg it may emit — carries the correct flags.
+# and pillow first (with pillow[avif] disabled so libavif is not pulled in,
+# breaking the cycle), then merging glib with harfbuzz[glib] temporarily
+# disabled. The overrides are immediately removed and both packages are
+# re-merged with their profile USE, so the baked image — and every binpkg
+# it may emit — carries the correct flags.
 # After this, every later -uDN (edges and the maker) finds all four already
 # installed at current versions and never has to merge them alongside a fresh
 # glib again.
 #
 # Cost is self-limiting: --update without --newuse merges only actual version
-# bumps, and the final --newuse harfbuzz re-merge is a rebuild only on the run
-# that actually flipped it, so a clean bake/publish is a no-op. --buildpkg-
-# exclude keeps the temporary -glib harfbuzz bin (and the others' stale bins)
-# out of PKGDIR; the compose's quickpkg pass re-emits docutils/pillow/harfbuzz/
-# glib into the overlay with their final USE flags.
+# bumps, and the final --newuse harfbuzz/pillow re-merge is a rebuild only on
+# the run that actually flipped it, so a clean bake/publish is a no-op.
+# --buildpkg-exclude keeps the temporary -glib/-avif bins (and the others'
+# stale bins) out of PKGDIR; the compose's quickpkg pass re-emits docutils/
+# pillow/harfbuzz/glib into the overlay with their final USE flags.
 mkdir -p /etc/portage/package.use
 echo 'media-libs/harfbuzz -glib -introspection' > /etc/portage/package.use/cycle-break
+echo 'dev-python/pillow -avif' >> /etc/portage/package.use/cycle-break
 emerge --oneshot --update --buildpkg-exclude \
     dev-python/docutils dev-python/pillow
 emerge --oneshot --update --buildpkg-exclude \
@@ -218,5 +220,7 @@ emerge --oneshot --update --buildpkg-exclude \
 rm -f /etc/portage/package.use/cycle-break
 emerge --oneshot --newuse --buildpkg-exclude \
     media-libs/harfbuzz
+emerge --oneshot --newuse --buildpkg-exclude \
+    dev-python/pillow
 
 echo "ENV: profile=${BRANCH_PROFILE}; make.conf, repos.conf, keywords, USE, binhost signature and ccache configured"
