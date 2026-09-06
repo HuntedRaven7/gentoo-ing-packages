@@ -202,6 +202,21 @@ and the other must follow.
    Merging to `main` runs the full matrix and publishes `:latest`; the next
    `gentoo-ing` build picks it up.
 
+### Regenerating ebuilds with gentooit
+
+Packages with a `.gentooit/<pkg>.yaml` config can have their ebuilds regenerated
+with the [gentooit](https://github.com/HuntedRaven7/gentooit) tool:
+
+```bash
+just generate-build               # build the gentooit binary from submodule
+just generate sys-apps/bootc      # regenerate a single package ebuild
+just generate --all               # regenerate all ebuilds from .gentooit configs
+```
+
+The per-package yaml configs live under `.gentooit/` and drive source URL,
+version pin, and metadata. The generated ebuild, `Manifest`, and `metadata.xml`
+land in `ebuilds/<category>/<pkg>/`.
+
 See [docs/adding-packages.md](docs/adding-packages.md) for the full walkthrough.
 
 ## Initial setup

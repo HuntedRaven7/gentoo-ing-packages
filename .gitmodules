@@ -1,0 +1,3 @@
+[submodule "tools/gentooit"]
+	path = tools/gentooit
+	url = https://github.com/HuntedRaven7/gentooit.git

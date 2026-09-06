@@ -28,6 +28,33 @@ lint:
     fi
     python3 -m py_compile tools/seed-binhost.py tools/validate.py
 
+# Build the gentooit binary from the submodule
+[group('Just')]
+generate-build:
+    cd tools/gentooit && cargo build --release
+
+# Regenerate ebuilds using gentooit
+# Usage: just generate <category/package>
+#        just generate --all
+[group('Just')]
+generate atom="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "{{ atom }}" ]; then
+        echo "Usage: just generate <category/package>" >&2
+        echo "       just generate --all" >&2
+        exit 1
+    fi
+    if [ "{{ atom }}" = "--all" ]; then
+        for yaml in .gentooit/*.yaml; do
+            pkg=$(basename "$yaml" .yaml)
+            echo "=== Generating ebuild for ${pkg} ==="
+            tools/run-gentooit.sh propose "$(grep -m1 '^category:' "$yaml" | sed 's/^category: //')/$pkg" || true
+        done
+    else
+        tools/run-gentooit.sh propose "{{ atom }}"
+    fi
+
 # Build the binhost image locally (mirrors + compiles the full overlay set).
 # ccache primes from .cache/ccache (a prior `just prime-cache`); a cold
 # first build starts with an empty cache, just like a first CI run.
