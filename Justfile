@@ -12,6 +12,12 @@ default:
 validate:
     python3 tools/validate.py
 
+# Lint shell tooling, byte-compile python tooling, and run all repo checks
+[group('Just')]
+check:
+    just lint
+    python3 tools/validate.py
+
 # Lint shell tooling and byte-compile python tooling
 [group('Just')]
 lint:
