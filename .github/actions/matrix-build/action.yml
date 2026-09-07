@@ -116,6 +116,7 @@ runs:
         fi
         args=(
           --rm
+          --init
           -e PACKAGE
           -e PRIOR_DIR=/prior
           -e RESULT_DIR=/result
