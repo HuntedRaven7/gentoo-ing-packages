@@ -673,3 +673,5 @@ x11-themes/gnome-backgrounds
 x11-themes/hicolor-icon-theme
 x11-themes/sound-theme-freedesktop
 x11-wm/mutter
+
+app-misc/ripgrep

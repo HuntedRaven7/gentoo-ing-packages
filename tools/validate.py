@@ -11,8 +11,9 @@ Checks:
 
 from __future__ import annotations
 
-import sys
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -103,6 +104,18 @@ def main() -> None:
         + check_packages_tree()
         + check_ebuilds_overlay()
     )
+
+    sync = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "sync-ebuilds.py"), "--check"],
+        capture_output=True,
+        text=True,
+    )
+    if sync.returncode != 0:
+        errors.append("ebuilds/ is out of sync with config/packages.txt or config/build-stages.txt:")
+        for line in (sync.stdout + sync.stderr).splitlines():
+            if line.strip():
+                errors.append(f"  {line}")
+
     if errors:
         print("validation failed:")
         for err in errors:

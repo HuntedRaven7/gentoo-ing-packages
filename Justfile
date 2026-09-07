@@ -26,7 +26,7 @@ lint:
     if command -v shellcheck >/dev/null 2>&1; then
         find tools -name '*.sh' -type f -exec shellcheck {} +
     fi
-    python3 -m py_compile tools/seed-binhost.py tools/validate.py
+    python3 -m py_compile tools/seed-binhost.py tools/validate.py tools/sync-ebuilds.py
 
 # Build the gentooit binary from the submodule
 [group('Just')]
@@ -88,6 +88,11 @@ push $tag="latest":
 [group('Tooling')]
 seed binhost_root="" BASE="https://distfiles.gentoo.org/releases/amd64/binpackages/23.0/x86-64":
     python3 tools/seed-binhost.py {{ if binhost_root == "" { BASE } else { binhost_root } }}
+
+# Sync ebuilds/ into config/packages.txt and config/build-stages.txt (adds missing entries)
+[group('Tooling')]
+sync-ebuilds:
+    python3 tools/sync-ebuilds.py --fix
 
 # Show the full overlay set the factory mirrors/builds (gentoo-ing parity)
 [group('Tooling')]
