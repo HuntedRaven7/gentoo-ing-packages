@@ -40,8 +40,11 @@ EOF
 fi
 
 # 2. Result PKGDIR. Override the baked default so only THIS edge's output is
-#    collected and uploaded.
+#    collected and uploaded. The baked image sets PKGDIR as an ENV var
+#    (/var/cache/binhost/gentoo-ing); portage precedence gives the environment
+#    the last word, so editing make.conf alone is NOT enough -- export it.
 mkdir -p "${RESULT_DIR}"
+export PKGDIR="${RESULT_DIR}"
 if grep -q '^PKGDIR=' /etc/portage/make.conf; then
     sed -i "s|^PKGDIR=.*|PKGDIR=${RESULT_DIR}|" /etc/portage/make.conf
 else
@@ -72,13 +75,26 @@ emerge --update --newuse "${PACKAGE}"
 
 atom=$(basename "${PACKAGE}")
 
-# 5. Fail-closed: the atom must actually have a binpkg in the result.
+# 5. Atoms satisfied as official binaries (or unchanged) never emit a binpkg:
+#    --buildpkg only packages source merges. Repack the installed atom from the
+#    VDB (make-binpkg.sh parity) so the consumer's --usepkgonly has a binpkg
+#    either way (efibootmgr pins a ::gentoo binary and has no comp gap).
+for dir in /var/db/pkg/*/${atom}-*; do
+    if [ -d "${dir}" ] \
+        && ! find "${RESULT_DIR}" -type f \( -name "${atom}-*.tbz2" -o -name "${atom}-*.gpkg.tar" \) | grep -q .; then
+        cpv="${dir#/var/db/pkg/}"
+        echo "FALLBACK: no binpkg emitted for ${PACKAGE}; quickpkg ${cpv} from VDB"
+        PKGDIR="${RESULT_DIR}" quickpkg --include-config=y "=${cpv}" 2>/dev/null || true
+    fi
+done
+
+# 6. Fail-closed: the atom must actually have a binpkg in the result.
 if ! find "${RESULT_DIR}" -type f \( -name "${atom}-*.tbz2" -o -name "${atom}-*.gpkg.tar" \) | grep -q .; then
     echo "FATAL: no binpkg produced for ${PACKAGE}" >&2
     exit 1
 fi
 
-# 6. Slim the result to THIS atom's own binpkg(s). --buildpkg also re-emits the
+# 7. Slim the result to THIS atom's own binpkg(s). --buildpkg also re-emits the
 #    whole merged dependency closure (mostly official-mirror bins) into
 #    RESULT_DIR; uploading that on every parallel edge would mean tens of GB of
 #    duplicated artifacts. The compose (make-binpkg.sh) re-mirrors dependencies
@@ -86,7 +102,7 @@ fi
 find "${RESULT_DIR}" -type f \( -name '*.tbz2' -o -name '*.gpkg.tar' \) ! -name "${atom}-*" -delete
 find "${RESULT_DIR}" -type d -empty -delete
 
-# 7. Report
+# 8. Report
 count=$(find "${RESULT_DIR}" \( -name '*.tbz2' -o -name '*.gpkg.tar' \) | wc -l)
 echo "MATRIX: ${PACKAGE} produced ${count} binpkg(s) in ${RESULT_DIR}"
 find "${RESULT_DIR}" \( -name '*.tbz2' -o -name '*.gpkg.tar' \) | sort
