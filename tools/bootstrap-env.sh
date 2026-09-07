@@ -220,15 +220,20 @@ done
 mkdir -p /etc/portage/package.use
 echo 'media-libs/harfbuzz -cairo -glib -introspection' > /etc/portage/package.use/cycle-break
 echo 'dev-python/pillow -avif' >> /etc/portage/package.use/cycle-break
-emerge --oneshot --update --buildpkg-exclude \
+emerge --oneshot --update \
+    --buildpkg-exclude=dev-python/docutils \
+    --buildpkg-exclude=dev-python/pillow \
     dev-python/docutils dev-python/pillow
-emerge --oneshot --update --buildpkg-exclude \
-    'dev-libs/glib media-libs/harfbuzz' \
+emerge --oneshot --update \
+    --buildpkg-exclude=dev-libs/glib \
+    --buildpkg-exclude=media-libs/harfbuzz \
     dev-libs/glib media-libs/harfbuzz
 rm -f /etc/portage/package.use/cycle-break
-emerge --oneshot --newuse --buildpkg-exclude \
+emerge --oneshot --newuse \
+    --buildpkg-exclude=media-libs/harfbuzz \
     media-libs/harfbuzz
-emerge --oneshot --newuse --buildpkg-exclude \
+emerge --oneshot --newuse \
+    --buildpkg-exclude=dev-python/pillow \
     dev-python/pillow
 
 echo "ENV: profile=${BRANCH_PROFILE}; make.conf, repos.conf, keywords, USE, binhost signature and ccache configured"
