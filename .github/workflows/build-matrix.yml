@@ -269,12 +269,19 @@ jobs:
 
   # ---- The matrix ----
   #
-  # stage0 needs nothing; stageN downloads the binpkg-s*-* artifacts of all
-  # earlier stages and registers them as a local binrepo (priority 10000, above
-  # the official host's 9999), so an intra-set compiled gap is built once and
-  # reused by every downstream edge instead of recompiled per edge.
+  # All stages wait for bootstrap: the edges pull the SHA-fresh :builder image
+  # the bootstrap job just baked and pushed (its glib cycle-break is what keeps
+  # the atom emerge resolvable). Without this dependency, parallel edges race
+  # the bootstrap and run against the previous run's stale image -> the same
+  # six edges hit the glib/docutils/pillow/(libavif|harfbuzz) circular
+  # dependency again. stage0 waits on bootstrap; the later stages inherit it
+  # transitively (stageN already needs stage0). stageN also downloads the
+  # binpkg-s*-* artifacts of all earlier stages and registers them as a local
+  # binrepo (priority 10000, above the official host's 9999), so an intra-set
+  # compiled gap is built once and reused by every downstream edge instead of
+  # recompiled per edge.
   stage0:
-    needs: prepare
+    needs: [prepare, bootstrap]
     if: ${{ !cancelled() && needs.prepare.outputs.stage0 != '[]' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 240

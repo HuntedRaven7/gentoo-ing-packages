@@ -5,11 +5,13 @@ EAPI=8
 
 DESCRIPTION="OpenSSH is a FREE version of the SSH connectivity tools"
 HOMEPAGE="https://www.openssh.com/"
-SRC_URI="https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/${P}.tar.gz"
+MY_PV="9.9p2"
+SRC_URI="https://cdn.openbsd.org/pub/OpenBSD/OpenSSH/portable/${PN}-${MY_PV}.tar.gz"
 
 LICENSE="BSD"
 SLOT="0"
 KEYWORDS="~amd64"
+S="${WORKDIR}/${PN}-${MY_PV}"
 
 
 src_install() {

@@ -28,7 +28,6 @@ PRIOR_DIR="${PRIOR_DIR:-}"
 #    (binrepo priority: higher wins; official is 9999, consumer is 10000).
 if [ -n "${PRIOR_DIR}" ] && [ -d "${PRIOR_DIR}" ] \
     && find "${PRIOR_DIR}" \( -name '*.tbz2' -o -name '*.gpkg.tar' \) -print -quit | grep -q .; then
-    emaint binhost --fix --dir "${PRIOR_DIR}"
     mkdir -p /etc/portage/binrepos.conf
     cat > /etc/portage/binrepos.conf/prior.conf <<EOF
 [prior]
@@ -54,8 +53,10 @@ fi
 if [ -d /app/packages ] && find /app/packages \( -name '*.tbz2' -o -name '*.gpkg.tar' \) -print -quit | grep -q .; then
     cp -avf /app/packages/. "${RESULT_DIR}/"
 fi
-# Index the (possibly staged) result so local bins are usable in this emerge.
-emaint binhost --fix --dir "${RESULT_DIR}" || true
+# Index the (possibly staged) result so the uploaded artifact carries a valid
+# Packages index for downstream stages to consume as their /prior binrepo.
+# (emaint indexes the PKGDIR set in make.conf; --dir is not an emaint option.)
+emaint binhost --fix || true
 
 # 4. Build the atom. Deps resolve from /prior (this factory) > official binhost
 #    > source, all behind the strict --binpkg-respect-use=y the consumer uses.
