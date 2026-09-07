@@ -7,7 +7,7 @@ inherit cargo
 
 DESCRIPTION=""
 HOMEPAGE="https://github.com/dracutdevs/dracut"
-SRC_URI="https://github.com/dracutdevs/dracut/archive/refs/tags/${PV}.tar.gz"
+SRC_URI="https://github.com/dracutdevs/dracut/archive/refs/tags/${PV}.tar.gz -> dracut-${PV}.tar.gz"
 
 LICENSE=""
 SLOT="0"

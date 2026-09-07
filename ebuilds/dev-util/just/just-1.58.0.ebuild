@@ -7,7 +7,7 @@ inherit cargo
 
 DESCRIPTION="Handy way to save and run project-specific commands"
 HOMEPAGE="https://github.com/casey/just"
-SRC_URI="https://github.com/casey/just/archive/refs/tags/${PV}.tar.gz"
+SRC_URI="https://github.com/casey/just/archive/refs/tags/${PV}.tar.gz -> just-${PV}.tar.gz"
 
 LICENSE="CC0-1.0"
 SLOT="0"

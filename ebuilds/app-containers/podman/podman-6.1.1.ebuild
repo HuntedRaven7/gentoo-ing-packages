@@ -5,12 +5,12 @@ EAPI=8
 
 DESCRIPTION=""
 HOMEPAGE="https://github.com/containers/podman"
-SRC_URI="https://github.com/containers/podman/archive/refs/tags/v${PV}.tar.gz"
+SRC_URI="https://github.com/containers/podman/archive/refs/tags/v${PV}.tar.gz -> podman-${PV}.tar.gz"
 
 LICENSE=""
 SLOT="0"
 KEYWORDS="~amd64"
-S="${WORKDIR}/podman-v${PV}"
+S="${WORKDIR}/podman-${PV}"
 
 
 src_install() {

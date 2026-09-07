@@ -5,12 +5,12 @@ EAPI=8
 
 DESCRIPTION=""
 HOMEPAGE="https://github.com/containers/skopeo"
-SRC_URI="https://github.com/containers/skopeo/archive/refs/tags/v${PV}.tar.gz"
+SRC_URI="https://github.com/containers/skopeo/archive/refs/tags/v${PV}.tar.gz -> skopeo-${PV}.tar.gz"
 
 LICENSE=""
 SLOT="0"
 KEYWORDS="~amd64"
-S="${WORKDIR}/skopeo-v${PV}"
+S="${WORKDIR}/skopeo-${PV}"
 
 
 src_install() {
