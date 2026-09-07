@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Tool for sandboxing applications"
 HOMEPAGE="https://github.com/containers/bubblewrap"
 SRC_URI="https://github.com/containers/bubblewrap/releases/download/v${PV}/${P}.tar.xz"
 
-LICENSE=""
+LICENSE="LGPL-2.1"
 SLOT="0"
 KEYWORDS="~amd64"
 

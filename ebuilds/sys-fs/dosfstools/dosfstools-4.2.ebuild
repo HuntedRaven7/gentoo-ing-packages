@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="DOS FAT filesystem utilities"
 HOMEPAGE="https://github.com/dosfstools/dosfstools"
 SRC_URI="https://github.com/dosfstools/dosfstools/releases/download/v${PV}/${P}.tar.gz"
 
-LICENSE=""
+LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64"
 

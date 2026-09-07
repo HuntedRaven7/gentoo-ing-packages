@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="GNOME desktop utilities"
 HOMEPAGE="https://wiki.gnome.org/Projects/gnome-desktop"
 SRC_URI="https://download.gnome.org/sources/gnome-desktop/44/${P}.tar.xz"
 
-LICENSE=""
+LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64"
 

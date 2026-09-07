@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Daemonless container engine"
 HOMEPAGE="https://github.com/containers/podman"
 SRC_URI="https://github.com/containers/podman/archive/refs/tags/v${PV}.tar.gz -> podman-${PV}.tar.gz"
 
-LICENSE=""
+LICENSE="Apache-2.0"
 SLOT="0"
 KEYWORDS="~amd64"
 S="${WORKDIR}/podman-${PV}"

@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="GNOME file manager"
 HOMEPAGE="https://wiki.gnome.org/Projects/nautilus"
 SRC_URI="https://download.gnome.org/sources/nautilus/49/${P}.tar.xz"
 
-LICENSE=""
+LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64"
 

@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Tools to change and administer user and group accounts"
 HOMEPAGE="https://github.com/shadow-maint/shadow"
 SRC_URI="https://github.com/shadow-maint/shadow/releases/download/${PV}/${P}.tar.gz"
 
-LICENSE=""
+LICENSE="BSD"
 SLOT="0"
 KEYWORDS="~amd64"
 

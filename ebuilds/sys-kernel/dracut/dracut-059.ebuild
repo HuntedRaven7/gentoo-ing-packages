@@ -5,11 +5,11 @@ EAPI=8
 
 inherit cargo
 
-DESCRIPTION=""
+DESCRIPTION="Generic dracut module"
 HOMEPAGE="https://github.com/dracutdevs/dracut"
 SRC_URI="https://github.com/dracutdevs/dracut/archive/refs/tags/${PV}.tar.gz -> dracut-${PV}.tar.gz"
 
-LICENSE=""
+LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64"
 

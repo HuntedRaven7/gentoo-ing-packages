@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Lightweight and flexible command-line JSON processor"
 HOMEPAGE="https://github.com/jqlang/jq"
 SRC_URI="https://github.com/jqlang/jq/archive/refs/tags/${P}.tar.gz"
 
-LICENSE=""
+LICENSE="MIT"
 SLOT="0"
 KEYWORDS="~amd64"
 S="${WORKDIR}/jq-${P}"

@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="GNOME keyring daemon"
 HOMEPAGE="https://wiki.gnome.org/Projects/gnome-keyring"
 SRC_URI="https://download.gnome.org/sources/gnome-keyring/48/${P}.tar.xz"
 
-LICENSE=""
+LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64"
 

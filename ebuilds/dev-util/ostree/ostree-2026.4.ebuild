@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Operating system deployment, updates and metadata management"
 HOMEPAGE="https://github.com/ostreedev/ostree"
 SRC_URI="https://github.com/ostreedev/ostree/releases/download/v${PV}/lib${P}.tar.xz"
 
-LICENSE=""
+LICENSE="LGPL-2.1"
 SLOT="0"
 KEYWORDS="~amd64"
 S="${WORKDIR}/lib${P}"

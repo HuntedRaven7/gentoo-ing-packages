@@ -3,11 +3,11 @@
 
 EAPI=8
 
-DESCRIPTION=""
+DESCRIPTION="Work with container images and registries"
 HOMEPAGE="https://github.com/containers/skopeo"
 SRC_URI="https://github.com/containers/skopeo/archive/refs/tags/v${PV}.tar.gz -> skopeo-${PV}.tar.gz"
 
-LICENSE=""
+LICENSE="Apache-2.0"
 SLOT="0"
 KEYWORDS="~amd64"
 S="${WORKDIR}/skopeo-${PV}"
