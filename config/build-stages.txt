@@ -660,4 +660,3 @@
 4	x11-themes/hicolor-icon-theme
 4	x11-themes/sound-theme-freedesktop
 4	x11-wm/mutter
-3	app-misc/ripgrep
