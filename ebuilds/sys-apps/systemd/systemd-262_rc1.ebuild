@@ -5,12 +5,13 @@ EAPI=8
 
 DESCRIPTION=""
 HOMEPAGE="https://github.com/systemd/systemd"
-SRC_URI="https://github.com/systemd/systemd/archive/refs/tags/v${PV}.tar.gz"
+MY_PV="262-rc1"
+SRC_URI="https://github.com/systemd/systemd/archive/refs/tags/v${MY_PV}.tar.gz -> systemd-${MY_PV}.tar.gz"
 
 LICENSE=""
 SLOT="0"
 KEYWORDS="~amd64"
-S="${WORKDIR}/systemd-v${PV}"
+S="${WORKDIR}/systemd-${MY_PV}"
 
 
 src_install() {
