@@ -294,14 +294,14 @@ jobs:
       - name: Prepare environment
         run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
       - name: Restore ccache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/ccache
           key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
             binhost-ccache-
       - name: Restore distfiles
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/distfiles
           key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
@@ -338,14 +338,14 @@ jobs:
       - name: Prepare environment
         run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
       - name: Restore ccache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/ccache
           key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
             binhost-ccache-
       - name: Restore distfiles
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/distfiles
           key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
@@ -389,14 +389,14 @@ jobs:
       - name: Prepare environment
         run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
       - name: Restore ccache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/ccache
           key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
             binhost-ccache-
       - name: Restore distfiles
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/distfiles
           key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
@@ -440,14 +440,14 @@ jobs:
       - name: Prepare environment
         run: echo "IMAGE_REGISTRY=${IMAGE_VENDOR,,}" >> "${GITHUB_ENV}"
       - name: Restore ccache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/ccache
           key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
             binhost-ccache-
       - name: Restore distfiles
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: work/distfiles
           key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
@@ -521,14 +521,14 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
       - name: Restore ccache from the cache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: /tmp/ccache-cache
           key: binhost-ccache-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
           restore-keys: |
             binhost-ccache-
       - name: Restore distfiles from the cache
-        uses: actions/cache@71d32eabc97c4ee289c6d9b651a466cf6a2fd530 # v4
+        uses: actions/cache@v4
         with:
           path: /tmp/distfiles-cache
           key: binhost-distfiles-${{ hashFiles('Containerfile', 'Justfile', 'config/packages.txt', 'config/build-stages.txt', 'ebuilds/**', 'tools/**', '.github/actions/matrix-build/action.yml') }}
