@@ -2,8 +2,10 @@
 """Sync ebuilds/ into config/packages.txt and config/build-stages.txt.
 
 Scans every .ebuild under ebuilds/, derives cat/pkg atoms, and ensures each
-one appears in both config files.  New atoms are appended with a default
-stage of 0 (safe fallback; stage ordering can be tuned later).
+one appears in both config files.  New atoms are appended with a stage chosen
+by a simple dependency heuristic: if the ebuild lists another overlay atom in
+DEPEND/RDEPEND/BUILD_DEPEND, the new atom is placed one stage above the
+highest dependency stage; otherwise it falls back to DEFAULT_STAGE.
 
 Modes:
   * default / --fix  : write missing entries back to disk
@@ -20,6 +22,12 @@ ROOT = Path(__file__).resolve().parent.parent
 ATOM_RE = re.compile(r"^[-\w+]+/[-\w+]+$")
 STAGE_RE = re.compile(r"^(\d+)\s+([-\w+]+/[-\w+]+)\s*$")
 DEFAULT_STAGE = 0
+DEPEND_VAR_RE = re.compile(
+    r"^(DEPEND|RDEPEND|BDEPEND|PDEPEND)\s*=\s*\"(.*?)\"",
+    re.MULTILINE | re.DOTALL,
+)
+ATOM_IN_DEPEND_RE = re.compile(r"([-\w+]+/[-\w+]+)(?:\s*\[.*?\])?(?:\s*\(.*?\))?")
+EBUILD_ATOM_RE = re.compile(r"^[-\w+]+/[-\w+]+$")
 
 
 def parse_packages(path: Path) -> tuple[list[str], set[str]]:
@@ -63,6 +71,37 @@ def ebuild_atoms() -> set[str]:
     return atoms
 
 
+def ebuild_depends(ebuild_path: Path) -> set[str]:
+    text = ebuild_path.read_text(errors="replace")
+    deps: set[str] = set()
+    for m in DEPEND_VAR_RE.finditer(text):
+        value = m.group(2)
+        for atom_m in ATOM_IN_DEPEND_RE.finditer(value):
+            candidate = atom_m.group(1)
+            if EBUILD_ATOM_RE.match(candidate):
+                deps.add(candidate)
+    return deps
+
+
+def stage_for_atom(atom: str, stages_map: dict[str, int]) -> int:
+    return stages_map.get(atom, DEFAULT_STAGE)
+
+
+def guess_stage(atom: str, stages_map: dict[str, int]) -> int:
+    cat, pkg = atom.split("/", 1)
+    ebuild_path = ROOT / "ebuilds" / cat / pkg / f"{pkg}-*.ebuild"
+    matches = list((ROOT / "ebuilds" / cat / pkg).glob("*.ebuild"))
+    if not matches:
+        return DEFAULT_STAGE
+    ebuild_path = matches[0]
+    deps = ebuild_depends(ebuild_path)
+    overlay_deps = deps & stages_map.keys()
+    if not overlay_deps:
+        return DEFAULT_STAGE
+    max_dep_stage = max(stage_for_atom(dep, stages_map) for dep in overlay_deps)
+    return max_dep_stage + 1
+
+
 def append_package(atom: str, existing: list[str]) -> None:
     if existing and existing[-1].strip() != "":
         existing.append("")
@@ -94,8 +133,9 @@ def sync(fix: bool) -> int:
         changed = True
 
     for atom in missing_stages:
-        print(f"build-stages.txt: adding {atom} @ stage {DEFAULT_STAGE}")
-        append_stage(atom, DEFAULT_STAGE, stages_lines)
+        stage = guess_stage(atom, stages_map)
+        print(f"build-stages.txt: adding {atom} @ stage {stage}")
+        append_stage(atom, stage, stages_lines)
         changed = True
 
     if not changed:
