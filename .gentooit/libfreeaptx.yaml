@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: iamthehorker/libfreeaptx
+  package-name: libfreeaptx
+  tag-template: v{version}
+  archive-template: https://github.com/iamthehorker/${PN}/archive/{version}.tar.gz
+  archive-name: null
+  version: 0.1.1-r1
+  s-dir: null
+package:
+  description: Reverse-engineered aptX and aptX HD library (fork of libopenaptx)
+  homepage: https://github.com/iamthehorker/libfreeaptx
+  license: LGPL-2.1+
+  slot: '0'
+  keywords: amd64 arm arm64 ~loong ~mips ppc ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

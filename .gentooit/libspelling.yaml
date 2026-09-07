@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: gnome-gitlab
+  upstream: GNOME/libspelling
+  package-name: libspelling
+  tag-template: v{version}
+  archive-template: https://gitlab.gnome.org/GNOME/${PN}/-/archive/{version}/libspelling-{version}.tar.bz2
+  archive-name: null
+  version: 0.4.10
+  s-dir: null
+package:
+  description: A GNOME library for spellchecking
+  homepage: https://gitlab.gnome.org/GNOME/libspelling
+  license: LGPL-2.1+
+  slot: '1'
+  keywords: amd64 ~arm arm64 ~loong ~ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

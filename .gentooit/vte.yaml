@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: gnome-gitlab
+  upstream: GNOME/vte
+  package-name: vte
+  tag-template: v{version}
+  archive-template: null
+  archive-name: null
+  version: 0.82.3
+  s-dir: null
+package:
+  description: Library providing a virtual terminal emulator widget
+  homepage: https://gitlab.gnome.org/GNOME/vte
+  license: LGPL-3+ GPL-3+
+  slot: '2.91-gtk4" # vte_api_version + "-gtk4" in meson.build'
+  keywords: amd64 ~arm arm64 ~loong ~ppc ~ppc64 ~riscv ~sparc ~x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

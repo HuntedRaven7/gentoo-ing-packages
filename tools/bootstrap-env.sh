@@ -109,7 +109,15 @@ $(find "${EBUILDS}" -name '*.ebuild' -print0 \
           rel="${ebuild#${EBUILDS}/}"
           cat="${rel%%/*}"
           pkg="${rel#${cat}/}"; pkg="${pkg%%/*}"
-          echo "${cat}/${pkg} ~amd64"
+          fpv="${rel#${cat}/${pkg}/}"; fpv="${fpv%.ebuild}"
+          vers="${fpv}"
+          for ((i = 0; i < ${#fpv}; i++)); do
+              if [ "${fpv:i:1}" = "-" ] && [[ "${fpv:i+1:1}" =~ [0-9] ]]; then
+                  vers="${fpv:i+1}"
+                  break
+              fi
+          done
+          echo "=${cat}/${pkg}-${vers} ~amd64"
       done | sort -u)
 EOF
 

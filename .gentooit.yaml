@@ -1,0 +1,13 @@
+# gentoo-it project config. `adopt` uses downstream[0].package-dir as the
+# destination prefix for imported packages (ebuilds/), mirroring the per-
+# package pins committed under .gentooit/.
+spec_version: "1.0"
+package:
+  maintainer_email: gentoo-ing@huntedraven.com
+  maintainer_name: gentoo-ing
+downstream:
+  - url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+    branch: main
+    category: gnome-base
+    package-dir: ebuilds
+open_pull_request: false

@@ -40,7 +40,7 @@ FORCED = {"sys-kernel/installkernel"}
 EXTERNAL = {"x11-drivers/nvidia-drivers"}
 
 ARRAY = re.compile(r"PACKAGES=\((.*?)\)", re.DOTALL)
-ATOM = re.compile(r"^\s*([-\w]+/[-\w]+)\s*$")
+ATOM = re.compile(r"^\s*([-\w+]+/[-\w+]+)\s*$")
 
 
 def parse_list(path: Path) -> set[str]:

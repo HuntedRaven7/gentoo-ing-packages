@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: hughsie/libxmlb
+  package-name: libxmlb
+  tag-template: v{version}
+  archive-template: https://github.com/hughsie/libxmlb/releases/download/{version}/libxmlb-{version}.tar.xz
+  archive-name: null
+  version: 0.3.26
+  s-dir: null
+package:
+  description: Library to help create and query binary XML blobs
+  homepage: https://github.com/hughsie/libxmlb
+  license: LGPL-2.1+
+  slot: '0/2" # libxmlb.so version'
+  keywords: amd64 arm arm64 ~loong ppc ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

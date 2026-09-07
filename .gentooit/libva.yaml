@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: intel/libva
+  package-name: libva
+  tag-template: v{version}
+  archive-template: https://github.com/intel/libva/archive/{version}.tar.gz
+  archive-name: null
+  version: 2.24.1
+  s-dir: null
+package:
+  description: Video Acceleration (VA) API for Linux
+  homepage: https://github.com/intel/libva
+  license: MIT
+  slot: 0/$(ver_cut 1)
+  keywords: amd64 ~arm arm64 ~loong ~mips ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: Exiv2/exiv2
+  package-name: exiv2
+  tag-template: v{version}
+  archive-template: https://github.com/Exiv2/exiv2/archive/refs/tags/v{version}.tar.gz
+  archive-name: null
+  version: 0.28.8
+  s-dir: null
+package:
+  description: EXIF, IPTC and XMP metadata C++ library and command line utility
+  homepage: https://exiv2.org/
+  license: GPL-2
+  slot: 0/$(ver_cut 1-2)
+  keywords: ~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~s390 ~sparc x86 ~x64-solaris
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PATTERN = re.compile(r"^[-\w]+(?:/[-\w]+)$")
+PATTERN = re.compile(r"^[-\w+]+(?:/[-\w+]+)$")
 VENDORED_ATOMS = ("sys-apps/bootc", "app-shells/gum", "dev-util/just")
 
 

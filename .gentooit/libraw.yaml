@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: LibRaw/LibRaw
+  package-name: libraw
+  tag-template: v{version}
+  archive-template: https://www.libraw.org/data/${MY_P}.tar.gz
+  archive-name: null
+  version: 0.22.1-r1
+  s-dir: null
+package:
+  description: LibRaw is a library for reading RAW files obtained from digital photo cameras
+  homepage: https://www.libraw.org/ https://github.com/LibRaw/LibRaw
+  license: LGPL-2.1 CDDL
+  slot: 0/${PV}
+  keywords: ~alpha amd64 arm arm64 ~hppa ~loong ~m68k ~mips ppc ppc64 ~riscv ~sparc x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

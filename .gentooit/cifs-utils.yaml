@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: cpe
+  upstream: cpe:/a:samba:cifs-utils
+  package-name: cifs-utils
+  tag-template: v{version}
+  archive-template: https://ftp.samba.org/pub/linux-cifs/${PN}/cifs-utils-{version}.tar.bz2
+  archive-name: null
+  version: '7.7'
+  s-dir: null
+package:
+  description: cifs-utils - adopted from the Gentoo tree
+  homepage: null
+  license: null
+  slot: null
+  keywords: null
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

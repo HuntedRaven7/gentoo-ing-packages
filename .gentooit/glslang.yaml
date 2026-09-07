@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: KhronosGroup/glslang
+  package-name: glslang
+  tag-template: v{version}
+  archive-template: https://github.com/KhronosGroup/${PN}/archive/${GIT_COMMIT}.tar.gz
+  archive-name: null
+  version: 1.4.350.0
+  s-dir: null
+package:
+  description: Khronos reference front-end for GLSL and ESSL, and sample SPIR-V generator
+  homepage: https://www.khronos.org/opengles/sdk/tools/Reference-Compiler/ https://github.com/KhronosGroup/glslang
+  license: BSD
+  slot: 0/16.3
+  keywords: amd64 arm arm64 ~loong ~ppc ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

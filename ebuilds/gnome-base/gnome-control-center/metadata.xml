@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
 <pkgmetadata>
-  <maintainer type="person">
-    <email>RobinGroves2007@proton.me</email>
-    <name>Robin Groves</name>
+  <maintainer type="project">
+    <email>gnome@gentoo.org</email>
+    <name>Gentoo GNOME Desktop</name>
   </maintainer>
+  <use>
+    <flag name="gnome-online-accounts">Enable configuration panel for <pkg>net-libs/gnome-online-accounts</pkg> accounts</flag>
+    <flag name="ibus">Enable support for enhanced input methods through <pkg>app-i18n/ibus</pkg></flag>
+  </use>
   <upstream>
-    <bugs-to>https://github.com/GNOME/gnome-control-center/issues</bugs-to>
-    <remote-id type="github">GNOME/gnome-control-center</remote-id>
+    <remote-id type="gnome-gitlab">GNOME/gnome-control-center</remote-id>
   </upstream>
 </pkgmetadata>

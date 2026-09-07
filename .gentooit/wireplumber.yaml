@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: freedesktop-gitlab
+  upstream: pipewire/wireplumber
+  package-name: wireplumber
+  tag-template: v{version}
+  archive-template: https://gitlab.freedesktop.org/pipewire/wireplumber/-/archive/${WIREPLUMBER_COMMIT}/wireplumber-${WIREPLUMBER_COMMIT}.tar.bz2
+  archive-name: null
+  version: 0.5.15
+  s-dir: null
+package:
+  description: Replacement for pipewire-media-session
+  homepage: https://gitlab.freedesktop.org/pipewire/wireplumber
+  license: MIT
+  slot: 0/0.5
+  keywords: amd64 arm arm64 ~loong ~mips ppc ppc64 ~riscv ~sparc x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

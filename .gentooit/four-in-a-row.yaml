@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: gnome-gitlab
+  upstream: GNOME/four-in-a-row
+  package-name: four-in-a-row
+  tag-template: v{version}
+  archive-template: null
+  archive-name: null
+  version: 3.38.1-r1
+  s-dir: null
+package:
+  description: four-in-a-row - adopted from the Gentoo tree
+  homepage: null
+  license: null
+  slot: null
+  keywords: null
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

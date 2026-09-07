@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: gnome
+  package-name: gnome
+  tag-template: v{version}
+  archive-template: null
+  archive-name: null
+  version: '48.0'
+  s-dir: null
+package:
+  description: Meta package for GNOME, merge this package to install
+  homepage: https://www.gnome.org/
+  license: metapackage
+  slot: '2.0" # Cannot be installed at the same time as gnome-2'
+  keywords: amd64
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: sourceforge
+  upstream: liba52
+  package-name: a52dec
+  tag-template: v{version}
+  archive-template: https://liba52.sourceforge.net/files/a52dec-{version}.tar.gz
+  archive-name: null
+  version: 0.7.4-r9
+  s-dir: null
+package:
+  description: Library for decoding ATSC A/52 streams used in DVD
+  homepage: https://liba52.sourceforge.net/
+  license: GPL-2+
+  slot: '0'
+  keywords: ~alpha amd64 arm arm64 ~hppa ~loong ~mips ppc ppc64 ~riscv ~sparc x86 ~x64-macos
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

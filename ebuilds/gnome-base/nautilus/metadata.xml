@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
 <pkgmetadata>
-  <maintainer type="person">
-    <email>RobinGroves2007@proton.me</email>
-    <name>Robin Groves</name>
+  <maintainer type="project">
+    <email>gnome@gentoo.org</email>
+    <name>Gentoo GNOME Desktop</name>
   </maintainer>
+  <use>
+    <flag name="cloudproviders">Enable the cloudproviders support</flag>
+    <flag name="gstreamer">Enable the Audio/Video file properties page</flag>
+    <flag name="previewer">Use <pkg>gnome-extra/sushi</pkg> to preview files from the file manager</flag>
+  </use>
   <upstream>
-    <bugs-to>https://github.com/GNOME/nautilus/issues</bugs-to>
-    <remote-id type="github">GNOME/nautilus</remote-id>
+    <remote-id type="gnome-gitlab">GNOME/nautilus</remote-id>
   </upstream>
 </pkgmetadata>

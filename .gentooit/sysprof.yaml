@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: gnome-gitlab
+  upstream: GNOME/sysprof
+  package-name: sysprof
+  tag-template: v{version}
+  archive-template: null
+  archive-name: null
+  version: 50.0-r1
+  s-dir: null
+package:
+  description: System-wide Linux Profiler
+  homepage: https://www.sysprof.com/
+  license: GPL-3+ GPL-2+
+  slot: 0/${API_VERSION}
+  keywords: amd64 ~arm64 ~loong x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false

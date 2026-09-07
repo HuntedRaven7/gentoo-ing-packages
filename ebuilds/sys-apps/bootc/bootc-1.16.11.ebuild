@@ -34,9 +34,9 @@ RDEPEND="
 BDEPEND="
 	dev-build/make
 	dev-go/go-md2man
-	sys-devel/clang
+	llvm-core/clang
 	virtual/pkgconfig
-	virtual/rust
+	>=dev-lang/rust-bin-1.82
 "
 
 src_unpack() {

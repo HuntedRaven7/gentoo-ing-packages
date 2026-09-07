@@ -1,0 +1,34 @@
+spec-version: '1.0'
+upstream:
+  vcs: github
+  upstream: mity/md4c
+  package-name: md4c
+  tag-template: v{version}
+  archive-template: https://github.com/mity/md4c/archive/refs/tags/release-{version}.tar.gz
+  archive-name: null
+  version: 0.5.3
+  s-dir: null
+package:
+  description: C Markdown parser. Fast, SAX-like interface, CommonMark Compliant
+  homepage: https://github.com/mity/md4c
+  license: MIT test? ( CC-BY-SA-4.0 )
+  slot: '0'
+  keywords: amd64 arm arm64 ~hppa ~loong ppc ppc64 ~riscv x86
+  iuse: null
+  depend: null
+  rdepend: null
+  bdepend: null
+  restrict: null
+  inherit: null
+  build-system: null
+  src-functions: null
+  maintainer-email: null
+  maintainer-name: null
+  remote-id-type: null
+downstream:
+- url: git@github.com:HuntedRaven7/gentoo-ing-packages.git
+  branch: main
+  category: gnome-base
+  package-dir: ebuilds
+files-to-sync: []
+open-pull-request: false
