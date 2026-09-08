@@ -71,7 +71,23 @@ emaint binhost --fix || true
 #    portage cannot order. --update scoped to the atom builds exactly this
 #    package plus whatever the strict resolution is missing; the compose
 #    (make-binpkg.sh -uDN over the full set) is the single whole-world refresh.
-emerge --update --newuse "${PACKAGE}"
+#
+# Retry transient binhost fetch failures (FileNotFoundError on a package the
+# official host hasn't published yet). Three attempts with backoff is enough
+# for the mirror to catch up.
+emerge_attempts=0
+emerge_max_attempts=3
+emerge_backoff=15
+until emerge --update --newuse "${PACKAGE}"; do
+    emerge_attempts=$((emerge_attempts + 1))
+    if [ ${emerge_attempts} -ge ${emerge_max_attempts} ]; then
+        echo "FATAL: emerge ${PACKAGE} failed after ${emerge_max_attempts} attempts" >&2
+        exit 1
+    fi
+    echo "emerge failed (attempt ${emerge_attempts}/${emerge_max_attempts}); retrying in ${emerge_backoff}s..."
+    sleep ${emerge_backoff}
+    emerge_backoff=$((emerge_backoff + 10))
+done
 
 atom=$(basename "${PACKAGE}")
 
